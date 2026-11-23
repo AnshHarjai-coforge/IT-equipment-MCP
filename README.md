@@ -10,8 +10,9 @@ The full requirements are in [`data/Lab/mcp_equipment_request_lab_formatted.md`]
 
 ## Status
 
-The logic behind the first tool, `get_employee_info`, is implemented and tested as plain
-Python. It is not wrapped as an MCP tool yet.
+The first tool, `get_employee_info`, is served over MCP and confirmed working end to end:
+the server registers it, and a client script connects and calls it. The remaining three
+tools and the agent are still to come.
 
 ## Requirements
 
@@ -52,16 +53,64 @@ print(repo.get_employee('E001').to_dict(as_of=date.today()))
 "
 ```
 
+## Running the MCP server
+
+The server listens on a port, so it runs in one terminal and clients connect to it from
+another. Start it:
+
+```bash
+python -m it_equipment.server
+```
+
+Then, in a second terminal, confirm the connection works. This lists the tools the server
+registered and calls one with both a known and an unknown employee id:
+
+```bash
+python scripts/check_connection.py
+```
+
+## Configuration
+
+Settings live in [`config.toml`](config.toml). Every one of them has a default in
+`src/it_equipment/config.py`, so the program runs without any configuration at all.
+
+Each setting can also be overridden by an environment variable, which is how a container
+changes one without the image being rebuilt:
+
+| Variable | Setting | Default |
+| --- | --- | --- |
+| `MCP_HOST` | address the server listens on | `127.0.0.1` |
+| `MCP_PORT` | port the server listens on | `8000` |
+| `MCP_PATH` | path the MCP endpoint lives at | `/mcp` |
+| `MCP_EMPLOYEES_FILE` | the employee records to load | `data/employees.json` |
+
+The order is defaults, then `config.toml`, then the environment, each overriding the one
+before. Both the server and the client script read the same settings, so they cannot end up
+pointing at different addresses:
+
+```bash
+MCP_PORT=9000 python -m it_equipment.server        # terminal 1
+MCP_PORT=9000 python scripts/check_connection.py   # terminal 2
+```
+
+Note that policy rules are **not** settings. They are the thing the system exists to apply,
+so they belong in a data file under `data/` with tests asserting on them.
+
 ## Layout
 
 ```
 src/it_equipment/models.py        Employee and EquipmentItem data types
 src/it_equipment/repository.py    employee lookups: get_employee
+src/it_equipment/config.py        Settings, and the loader that layers them
+src/it_equipment/server.py        the MCP server and its tools
+scripts/check_connection.py       connects as a client and calls a tool
+config.toml                       application settings
 tests/                            unit tests, run against the plain functions
 data/employees.json               mock employee records
 data/Lab/                         the lab brief
 .github/workflows/ci.yml          the CI pipeline
 ```
 
-Business logic lives in plain functions and classes with no MCP imports. The MCP server will
-wrap them in thin tool functions, so the logic stays directly testable.
+Business logic lives in plain functions and classes with no MCP imports: `server.py` is the
+only module that imports `mcp`, and it is a thin wrapper over those plain functions, so the
+logic stays directly testable.
