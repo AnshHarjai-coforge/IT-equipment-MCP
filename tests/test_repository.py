@@ -53,26 +53,26 @@ def repository() -> EmployeeRepository:
 def test_returns_the_role_and_tenure_of_a_known_employee(repository):
     info = repository.get_employee_info("E100", as_of=TODAY)
 
-    assert info["employee_id"] == "E100"
-    assert info["name"] == "Priya Raman"
-    assert info["role"] == "standard"
-    assert info["tenure_years"] == 7
+    assert info.employee_id == "E100"
+    assert info.name == "Priya Raman"
+    assert info.role == "standard"
+    assert info.tenure_years == 7
 
 
 def test_returns_the_equipment_on_file(repository):
     info = repository.get_employee_info("E100", as_of=TODAY)
 
-    assert info["equipment"] == [
-        {"name": "laptop", "issued_on": "2022-03-01"},
-        {"name": "monitor", "issued_on": "2022-03-01"},
+    assert info.equipment == [
+        EquipmentItem(name="laptop", issued_on=date(2022, 3, 1)),
+        EquipmentItem(name="monitor", issued_on=date(2022, 3, 1)),
     ]
 
 
 def test_employee_with_no_equipment_returns_an_empty_list(repository):
     info = repository.get_employee_info("E200", as_of=TODAY)
 
-    assert info["equipment"] == []
-    assert info["tenure_years"] == 0
+    assert info.equipment == []
+    assert info.tenure_years == 0
 
 
 def test_unknown_employee_id_raises(repository):
@@ -80,14 +80,29 @@ def test_unknown_employee_id_raises(repository):
         repository.get_employee_info("E999", as_of=TODAY)
 
 
+def test_to_dict_is_the_shape_the_tool_will_return(repository):
+    info = repository.get_employee_info("E100", as_of=TODAY)
+
+    assert info.to_dict() == {
+        "employee_id": "E100",
+        "name": "Priya Raman",
+        "role": "standard",
+        "tenure_years": 7,
+        "equipment": [
+            {"name": "laptop", "issued_on": "2022-03-01"},
+            {"name": "monitor", "issued_on": "2022-03-01"},
+        ],
+    }
+
+
 def test_the_result_is_json_serialisable(repository):
     """An MCP tool must return something that converts to JSON."""
     info = repository.get_employee_info("E100", as_of=TODAY)
 
     # json.dumps raises TypeError if any value cannot be converted.
-    as_json = json.dumps(info)
+    as_json = json.dumps(info.to_dict())
 
-    assert json.loads(as_json) == info
+    assert json.loads(as_json) == info.to_dict()
 
 
 def test_loading_from_json_converts_the_dates(tmp_path):
@@ -104,9 +119,10 @@ def test_loading_from_json_converts_the_dates(tmp_path):
     repository = load_employees_from_json(path)
     info = repository.get_employee_info("E300", as_of=TODAY)
 
-    assert info["role"] == "engineer"
-    assert info["tenure_years"] == 11
-    assert info["equipment"] == [{"name": "laptop", "issued_on": "2025-08-20"}]
+    assert info.role == "engineer"
+    assert info.tenure_years == 11
+    # The text "2025-08-20" has become a real date object.
+    assert info.equipment[0].issued_on == date(2025, 8, 20)
 
 
 def test_the_committed_data_file_loads():
@@ -115,5 +131,5 @@ def test_the_committed_data_file_loads():
 
     info = repository.get_employee_info("E001", as_of=TODAY)
 
-    assert info["role"] == "standard"
-    assert info["tenure_years"] == 7
+    assert info.role == "standard"
+    assert info.tenure_years == 7

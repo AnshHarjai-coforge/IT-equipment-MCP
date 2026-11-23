@@ -9,7 +9,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from it_equipment.models import Employee, EquipmentItem
+from it_equipment.models import Employee, EmployeeInfo, EquipmentItem
 
 
 class EmployeeNotFoundError(KeyError):
@@ -28,12 +28,11 @@ class EmployeeRepository:
     def __init__(self, employees: dict[str, Employee]) -> None:
         self._employees = employees
 
-    def get_employee_info(self, employee_id: str, as_of: date) -> dict:
+    def get_employee_info(self, employee_id: str, as_of: date) -> EmployeeInfo:
         """Return the role, tenure and equipment on file for one employee.
 
-        The return value is a dictionary of plain strings and numbers, because
-        an MCP tool has to return something that converts to JSON. Dates are
-        returned in ISO format (YYYY-MM-DD) for the same reason.
+        The answer is an EmployeeInfo, not a dictionary. Call to_dict() on it
+        at the point where it has to become JSON, such as in an MCP tool.
 
         Raises EmployeeNotFoundError if the id is unknown. Raising rather than
         returning None means a caller cannot mistake a missing employee for an
@@ -44,23 +43,13 @@ class EmployeeRepository:
 
         employee = self._employees[employee_id]
 
-        # Convert each item into a plain dictionary with a text date.
-        equipment = []
-        for item in employee.equipment:
-            equipment.append(
-                {
-                    "name": item.name,
-                    "issued_on": item.issued_on.isoformat(),
-                }
-            )
-
-        return {
-            "employee_id": employee.employee_id,
-            "name": employee.name,
-            "role": employee.role,
-            "tenure_years": employee.tenure_years(as_of),
-            "equipment": equipment,
-        }
+        return EmployeeInfo(
+            employee_id=employee.employee_id,
+            name=employee.name,
+            role=employee.role,
+            tenure_years=employee.tenure_years(as_of),
+            equipment=employee.equipment,
+        )
 
 
 def load_employees_from_json(path: str | Path) -> EmployeeRepository:

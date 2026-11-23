@@ -15,6 +15,13 @@ class EquipmentItem:
     name: str
     issued_on: date
 
+    def to_dict(self) -> dict:
+        """Convert to plain types that can be written as JSON."""
+        return {
+            "name": self.name,
+            "issued_on": self.issued_on.isoformat(),
+        }
+
 
 @dataclass(frozen=True)
 class Employee:
@@ -39,8 +46,6 @@ class Employee:
         # has not served six years on 2026-02-28, only five.
         years = as_of.year - self.hire_date.year
 
-        # So check whether this year's anniversary of the hire date has
-        # arrived yet. If it has not, the year in progress does not count.
         anniversary_passed = True
 
         if as_of.month < self.hire_date.month:
@@ -52,6 +57,43 @@ class Employee:
                 anniversary_passed = False
 
         if not anniversary_passed:
-            years = years - 1
+            years -= 1
 
         return years
+
+
+@dataclass(frozen=True)
+class EmployeeInfo:
+    """What the get_employee_info tool answers with.
+
+    This names the tool's return shape, so callers read info.role rather
+    than info["role"] and a mistyped field is a visible mistake.
+
+    It is a separate type from Employee on purpose: Employee is the record as
+    stored, while this is the answer to one question about it at one point in
+    time, which is why it holds tenure_years rather than hire_date.
+    """
+
+    employee_id: str
+    name: str
+    role: str
+    tenure_years: int
+    equipment: list[EquipmentItem]
+
+    def to_dict(self) -> dict:
+        """Convert to plain types, ready to be returned by an MCP tool.
+
+        An MCP tool result has to convert to JSON, and this is the one place
+        that conversion happens on the way out.
+        """
+        equipment = []
+        for item in self.equipment:
+            equipment.append(item.to_dict())
+
+        return {
+            "employee_id": self.employee_id,
+            "name": self.name,
+            "role": self.role,
+            "tenure_years": self.tenure_years,
+            "equipment": equipment,
+        }

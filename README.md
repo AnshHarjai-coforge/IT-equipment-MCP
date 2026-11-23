@@ -48,7 +48,7 @@ python -c "
 from datetime import date
 from it_equipment.repository import load_employees_from_json
 repo = load_employees_from_json('data/employees.json')
-print(repo.get_employee_info('E001', as_of=date.today()))
+print(repo.get_employee_info('E001', as_of=date.today()).to_dict())
 "
 ```
 

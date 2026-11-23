@@ -46,3 +46,9 @@ def test_equipment_item_holds_a_real_date():
 
     assert item.name == "laptop"
     assert item.issued_on.year == 2022
+
+
+def test_equipment_item_to_dict_uses_a_text_date():
+    item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
+
+    assert item.to_dict() == {"name": "laptop", "issued_on": "2022-03-01"}
