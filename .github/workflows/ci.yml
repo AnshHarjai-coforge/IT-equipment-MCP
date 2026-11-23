@@ -1,0 +1,40 @@
+# Continuous integration: every push and pull request must install the
+# project, pass the linter and formatter, and pass the test suite.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install the project and its development tools
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+      - name: Run tests
+        # pytest exits 5 when it collects no tests. This branch has none yet,
+        # so 5 counts as success here; a real test failure (1) still fails CI.
+        # This guard is removed in the branch that adds the first test.
+        run: pytest || [ "$?" -eq 5 ]
