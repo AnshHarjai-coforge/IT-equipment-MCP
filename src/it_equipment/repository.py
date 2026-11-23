@@ -9,7 +9,7 @@ import json
 from datetime import date
 from pathlib import Path
 
-from it_equipment.models import Employee, EmployeeInfo, EquipmentItem
+from it_equipment.models import Employee, EquipmentItem
 
 
 class EmployeeNotFoundError(KeyError):
@@ -28,10 +28,10 @@ class EmployeeRepository:
     def __init__(self, employees: dict[str, Employee]) -> None:
         self._employees = employees
 
-    def get_employee_info(self, employee_id: str, as_of: date) -> EmployeeInfo:
-        """Return the role, tenure and equipment on file for one employee.
+    def get_employee(self, employee_id: str) -> Employee:
+        """Return the employee record with this id.
 
-        The answer is an EmployeeInfo, not a dictionary. Call to_dict() on it
+        This is a lookup and nothing more. Call to_dict(as_of) on the result
         at the point where it has to become JSON, such as in an MCP tool.
 
         Raises EmployeeNotFoundError if the id is unknown. Raising rather than
@@ -41,15 +41,7 @@ class EmployeeRepository:
         if employee_id not in self._employees:
             raise EmployeeNotFoundError(f"No employee with id '{employee_id}'")
 
-        employee = self._employees[employee_id]
-
-        return EmployeeInfo(
-            employee_id=employee.employee_id,
-            name=employee.name,
-            role=employee.role,
-            tenure_years=employee.tenure_years(as_of),
-            equipment=employee.equipment,
-        )
+        return self._employees[employee_id]
 
 
 def load_employees_from_json(path: str | Path) -> EmployeeRepository:

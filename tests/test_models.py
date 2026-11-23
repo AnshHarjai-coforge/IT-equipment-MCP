@@ -52,3 +52,30 @@ def test_equipment_item_to_dict_uses_a_text_date():
     item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
 
     assert item.to_dict() == {"name": "laptop", "issued_on": "2022-03-01"}
+
+
+def test_employee_to_dict_is_the_shape_the_tool_returns():
+    employee = Employee(
+        employee_id="E100",
+        name="Priya Raman",
+        role="standard",
+        hire_date=date(2019, 4, 15),
+        equipment=[EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))],
+    )
+
+    assert employee.to_dict(as_of=date(2026, 11, 23)) == {
+        "employee_id": "E100",
+        "name": "Priya Raman",
+        "role": "standard",
+        "tenure_years": 7,
+        "equipment": [{"name": "laptop", "issued_on": "2022-03-01"}],
+    }
+
+
+def test_employee_to_dict_replaces_the_hire_date_with_tenure():
+    employee = make_employee(date(2019, 4, 15))
+
+    result = employee.to_dict(as_of=date(2026, 11, 23))
+
+    assert "hire_date" not in result
+    assert result["tenure_years"] == 7

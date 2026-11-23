@@ -50,59 +50,43 @@ def repository() -> EmployeeRepository:
     return EmployeeRepository(employees)
 
 
-def test_returns_the_role_and_tenure_of_a_known_employee(repository):
-    info = repository.get_employee_info("E100", as_of=TODAY)
+def test_returns_the_record_of_a_known_employee(repository):
+    employee = repository.get_employee("E100")
 
-    assert info.employee_id == "E100"
-    assert info.name == "Priya Raman"
-    assert info.role == "standard"
-    assert info.tenure_years == 7
+    assert employee.employee_id == "E100"
+    assert employee.name == "Priya Raman"
+    assert employee.role == "standard"
+    assert employee.hire_date == date(2019, 4, 15)
 
 
 def test_returns_the_equipment_on_file(repository):
-    info = repository.get_employee_info("E100", as_of=TODAY)
+    employee = repository.get_employee("E100")
 
-    assert info.equipment == [
+    assert employee.equipment == [
         EquipmentItem(name="laptop", issued_on=date(2022, 3, 1)),
         EquipmentItem(name="monitor", issued_on=date(2022, 3, 1)),
     ]
 
 
-def test_employee_with_no_equipment_returns_an_empty_list(repository):
-    info = repository.get_employee_info("E200", as_of=TODAY)
+def test_employee_with_no_equipment_has_an_empty_list(repository):
+    employee = repository.get_employee("E200")
 
-    assert info.equipment == []
-    assert info.tenure_years == 0
+    assert employee.equipment == []
 
 
 def test_unknown_employee_id_raises(repository):
     with pytest.raises(EmployeeNotFoundError):
-        repository.get_employee_info("E999", as_of=TODAY)
+        repository.get_employee("E999")
 
 
-def test_to_dict_is_the_shape_the_tool_will_return(repository):
-    info = repository.get_employee_info("E100", as_of=TODAY)
-
-    assert info.to_dict() == {
-        "employee_id": "E100",
-        "name": "Priya Raman",
-        "role": "standard",
-        "tenure_years": 7,
-        "equipment": [
-            {"name": "laptop", "issued_on": "2022-03-01"},
-            {"name": "monitor", "issued_on": "2022-03-01"},
-        ],
-    }
-
-
-def test_the_result_is_json_serialisable(repository):
+def test_the_tool_result_is_json_serialisable(repository):
     """An MCP tool must return something that converts to JSON."""
-    info = repository.get_employee_info("E100", as_of=TODAY)
+    result = repository.get_employee("E100").to_dict(as_of=TODAY)
 
     # json.dumps raises TypeError if any value cannot be converted.
-    as_json = json.dumps(info.to_dict())
+    as_json = json.dumps(result)
 
-    assert json.loads(as_json) == info.to_dict()
+    assert json.loads(as_json) == result
 
 
 def test_loading_from_json_converts_the_dates(tmp_path):
@@ -117,19 +101,19 @@ def test_loading_from_json_converts_the_dates(tmp_path):
     path.write_text(json.dumps([record]), encoding="utf-8")
 
     repository = load_employees_from_json(path)
-    info = repository.get_employee_info("E300", as_of=TODAY)
+    employee = repository.get_employee("E300")
 
-    assert info.role == "engineer"
-    assert info.tenure_years == 11
-    # The text "2025-08-20" has become a real date object.
-    assert info.equipment[0].issued_on == date(2025, 8, 20)
+    assert employee.role == "engineer"
+    # The text in the file has become real date objects.
+    assert employee.hire_date == date(2015, 1, 12)
+    assert employee.equipment[0].issued_on == date(2025, 8, 20)
 
 
 def test_the_committed_data_file_loads():
     """A typo in data/employees.json should fail CI, not a live demo."""
     repository = load_employees_from_json(DATA_FILE)
 
-    info = repository.get_employee_info("E001", as_of=TODAY)
+    employee = repository.get_employee("E001")
 
-    assert info.role == "standard"
-    assert info.tenure_years == 7
+    assert employee.role == "standard"
+    assert employee.tenure_years(as_of=TODAY) == 7

@@ -61,30 +61,16 @@ class Employee:
 
         return years
 
-
-@dataclass(frozen=True)
-class EmployeeInfo:
-    """What the get_employee_info tool answers with.
-
-    This names the tool's return shape, so callers read info.role rather
-    than info["role"] and a mistyped field is a visible mistake.
-
-    It is a separate type from Employee on purpose: Employee is the record as
-    stored, while this is the answer to one question about it at one point in
-    time, which is why it holds tenure_years rather than hire_date.
-    """
-
-    employee_id: str
-    name: str
-    role: str
-    tenure_years: int
-    equipment: list[EquipmentItem]
-
-    def to_dict(self) -> dict:
+    def to_dict(self, as_of: date) -> dict:
         """Convert to plain types, ready to be returned by an MCP tool.
 
-        An MCP tool result has to convert to JSON, and this is the one place
-        that conversion happens on the way out.
+        This is the shape the get_employee_info tool answers with, and the one
+        place where the conversion to JSON happens on the way out. Dates become
+        text in ISO format (YYYY-MM-DD), because JSON has no date type.
+
+        The hire date is replaced by tenure_years, which is what the policy
+        rules are written in terms of. It is calculated here from as_of rather
+        than stored, so it cannot go stale.
         """
         equipment = []
         for item in self.equipment:
@@ -94,6 +80,6 @@ class EmployeeInfo:
             "employee_id": self.employee_id,
             "name": self.name,
             "role": self.role,
-            "tenure_years": self.tenure_years,
+            "tenure_years": self.tenure_years(as_of),
             "equipment": equipment,
         }

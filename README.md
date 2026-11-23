@@ -48,7 +48,7 @@ python -c "
 from datetime import date
 from it_equipment.repository import load_employees_from_json
 repo = load_employees_from_json('data/employees.json')
-print(repo.get_employee_info('E001', as_of=date.today()).to_dict())
+print(repo.get_employee('E001').to_dict(as_of=date.today()))
 "
 ```
 
@@ -56,7 +56,7 @@ print(repo.get_employee_info('E001', as_of=date.today()).to_dict())
 
 ```
 src/it_equipment/models.py        Employee and EquipmentItem data types
-src/it_equipment/repository.py    employee lookups: get_employee_info
+src/it_equipment/repository.py    employee lookups: get_employee
 tests/                            unit tests, run against the plain functions
 data/employees.json               mock employee records
 data/Lab/                         the lab brief
