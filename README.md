@@ -10,7 +10,8 @@ The full requirements are in [`data/Lab/mcp_equipment_request_lab_formatted.md`]
 
 ## Status
 
-Project skeleton and CI pipeline only. No tools are implemented yet.
+The logic behind the first tool, `get_employee_info`, is implemented and tested as plain
+Python. It is not wrapped as an MCP tool yet.
 
 ## Requirements
 
@@ -34,17 +35,33 @@ ruff format --check .   # formatting
 pytest                  # tests
 ```
 
-To run a single test once tests exist:
+To run a single test:
 
 ```bash
-pytest tests/test_repository.py::test_name -v
+pytest tests/test_repository.py::test_unknown_employee_id_raises -v
+```
+
+## Looking up an employee
+
+```bash
+python -c "
+from datetime import date
+from it_equipment.repository import EmployeeRepository
+repo = EmployeeRepository.from_json_file('data/employees.json')
+print(repo.get_employee_info('E001', as_of=date.today()))
+"
 ```
 
 ## Layout
 
 ```
-src/it_equipment/    the package: MCP server tools and the agent
-tests/               unit tests, run directly against the plain functions
-data/                mock data and the lab brief
-.github/workflows/   the CI pipeline
+src/it_equipment/models.py        Employee and EquipmentItem data types
+src/it_equipment/repository.py    employee lookups: get_employee_info
+tests/                            unit tests, run against the plain functions
+data/employees.json               mock employee records
+data/Lab/                         the lab brief
+.github/workflows/ci.yml          the CI pipeline
 ```
+
+Business logic lives in plain functions and classes with no MCP imports. The MCP server will
+wrap them in thin tool functions, so the logic stays directly testable.
