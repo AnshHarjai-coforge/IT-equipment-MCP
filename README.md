@@ -46,8 +46,8 @@ pytest tests/test_repository.py::test_unknown_employee_id_raises -v
 ```bash
 python -c "
 from datetime import date
-from it_equipment.repository import EmployeeRepository
-repo = EmployeeRepository.from_json_file('data/employees.json')
+from it_equipment.repository import load_employees_from_json
+repo = load_employees_from_json('data/employees.json')
 print(repo.get_employee_info('E001', as_of=date.today()))
 "
 ```

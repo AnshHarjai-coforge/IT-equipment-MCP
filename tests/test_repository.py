@@ -11,10 +11,15 @@ from pathlib import Path
 import pytest
 
 from it_equipment.models import Employee, EquipmentItem
-from it_equipment.repository import EmployeeNotFoundError, EmployeeRepository
+from it_equipment.repository import (
+    EmployeeNotFoundError,
+    EmployeeRepository,
+    load_employees_from_json,
+)
 
-# The committed mock data, two directories up from this file.
-DATA_FILE = Path(__file__).resolve().parents[1] / "data" / "employees.json"
+# The committed mock data. __file__ is this test file, so its parent is tests/
+# and the parent of that is the repository root.
+DATA_FILE = Path(__file__).parent.parent / "data" / "employees.json"
 
 # A fixed date, so every expected tenure below is a constant.
 TODAY = date(2026, 11, 23)
@@ -23,27 +28,26 @@ TODAY = date(2026, 11, 23)
 @pytest.fixture
 def repository() -> EmployeeRepository:
     """A two-employee repository built in memory, with no file involved."""
-    return EmployeeRepository(
-        {
-            "E100": Employee(
-                employee_id="E100",
-                name="Priya Raman",
-                role="standard",
-                hire_date=date(2019, 4, 15),
-                equipment=(
-                    EquipmentItem(name="laptop", issued_on=date(2022, 3, 1)),
-                    EquipmentItem(name="monitor", issued_on=date(2022, 3, 1)),
-                ),
-            ),
-            "E200": Employee(
-                employee_id="E200",
-                name="Marcus Webb",
-                role="standard",
-                hire_date=date(2026, 11, 2),
-                equipment=(),
-            ),
-        }
+    priya = Employee(
+        employee_id="E100",
+        name="Priya Raman",
+        role="standard",
+        hire_date=date(2019, 4, 15),
+        equipment=[
+            EquipmentItem(name="laptop", issued_on=date(2022, 3, 1)),
+            EquipmentItem(name="monitor", issued_on=date(2022, 3, 1)),
+        ],
     )
+    marcus = Employee(
+        employee_id="E200",
+        name="Marcus Webb",
+        role="standard",
+        hire_date=date(2026, 11, 2),
+        equipment=[],
+    )
+
+    employees = {"E100": priya, "E200": marcus}
+    return EmployeeRepository(employees)
 
 
 def test_returns_the_role_and_tenure_of_a_known_employee(repository):
@@ -80,27 +84,25 @@ def test_the_result_is_json_serialisable(repository):
     """An MCP tool must return something that converts to JSON."""
     info = repository.get_employee_info("E100", as_of=TODAY)
 
-    assert json.loads(json.dumps(info)) == info
+    # json.dumps raises TypeError if any value cannot be converted.
+    as_json = json.dumps(info)
+
+    assert json.loads(as_json) == info
 
 
-def test_from_json_file_parses_dates(tmp_path):
+def test_loading_from_json_converts_the_dates(tmp_path):
+    record = {
+        "employee_id": "E300",
+        "name": "Sofia Brandt",
+        "role": "engineer",
+        "hire_date": "2015-01-12",
+        "equipment": [{"name": "laptop", "issued_on": "2025-08-20"}],
+    }
     path = tmp_path / "employees.json"
-    path.write_text(
-        json.dumps(
-            [
-                {
-                    "employee_id": "E300",
-                    "name": "Sofia Brandt",
-                    "role": "engineer",
-                    "hire_date": "2015-01-12",
-                    "equipment": [{"name": "laptop", "issued_on": "2025-08-20"}],
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
+    path.write_text(json.dumps([record]), encoding="utf-8")
 
-    info = EmployeeRepository.from_json_file(path).get_employee_info("E300", as_of=TODAY)
+    repository = load_employees_from_json(path)
+    info = repository.get_employee_info("E300", as_of=TODAY)
 
     assert info["role"] == "engineer"
     assert info["tenure_years"] == 11
@@ -109,7 +111,7 @@ def test_from_json_file_parses_dates(tmp_path):
 
 def test_the_committed_data_file_loads():
     """A typo in data/employees.json should fail CI, not a live demo."""
-    repository = EmployeeRepository.from_json_file(DATA_FILE)
+    repository = load_employees_from_json(DATA_FILE)
 
     info = repository.get_employee_info("E001", as_of=TODAY)
 

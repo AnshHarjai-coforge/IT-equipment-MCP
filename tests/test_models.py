@@ -12,7 +12,7 @@ def make_employee(hire_date: date) -> Employee:
         name="Test Employee",
         role="standard",
         hire_date=hire_date,
-        equipment=(),
+        equipment=[],
     )
 
 

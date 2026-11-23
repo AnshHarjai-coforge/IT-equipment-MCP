@@ -28,13 +28,6 @@ class EmployeeRepository:
     def __init__(self, employees: dict[str, Employee]) -> None:
         self._employees = employees
 
-    @classmethod
-    def from_json_file(cls, path: str | Path) -> "EmployeeRepository":
-        """Build a repository from a JSON file of employee records."""
-        records = json.loads(Path(path).read_text(encoding="utf-8"))
-        employees = {record["employee_id"]: _employee_from_record(record) for record in records}
-        return cls(employees)
-
     def get_employee_info(self, employee_id: str, as_of: date) -> dict:
         """Return the role, tenure and equipment on file for one employee.
 
@@ -46,34 +39,66 @@ class EmployeeRepository:
         returning None means a caller cannot mistake a missing employee for an
         employee who simply holds no equipment.
         """
-        employee = self._employees.get(employee_id)
-        if employee is None:
-            raise EmployeeNotFoundError(f"No employee with id {employee_id!r}")
+        if employee_id not in self._employees:
+            raise EmployeeNotFoundError(f"No employee with id '{employee_id}'")
+
+        employee = self._employees[employee_id]
+
+        # Convert each item into a plain dictionary with a text date.
+        equipment = []
+        for item in employee.equipment:
+            equipment.append(
+                {
+                    "name": item.name,
+                    "issued_on": item.issued_on.isoformat(),
+                }
+            )
 
         return {
             "employee_id": employee.employee_id,
             "name": employee.name,
             "role": employee.role,
             "tenure_years": employee.tenure_years(as_of),
-            "equipment": [
-                {"name": item.name, "issued_on": item.issued_on.isoformat()}
-                for item in employee.equipment
-            ],
+            "equipment": equipment,
         }
 
 
-def _employee_from_record(record: dict) -> Employee:
-    """Convert one JSON record into an Employee, parsing its date strings."""
+def load_employees_from_json(path: str | Path) -> EmployeeRepository:
+    """Read a JSON file of employee records and return a repository of them.
+
+    This is the only place in the package that reads a file.
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    records = json.loads(text)
+
+    # Index the records by employee id, so a lookup does not scan the list.
+    employees = {}
+    for record in records:
+        employee = build_employee(record)
+        employees[employee.employee_id] = employee
+
+    return EmployeeRepository(employees)
+
+
+def build_employee(record: dict) -> Employee:
+    """Turn one record from the JSON file into an Employee.
+
+    JSON has no date type, so the hire and issue dates arrive as text such as
+    "2022-03-01" and are converted into real date objects here.
+    """
+    equipment = []
+    for item in record["equipment"]:
+        equipment.append(
+            EquipmentItem(
+                name=item["name"],
+                issued_on=date.fromisoformat(item["issued_on"]),
+            )
+        )
+
     return Employee(
         employee_id=record["employee_id"],
         name=record["name"],
         role=record["role"],
         hire_date=date.fromisoformat(record["hire_date"]),
-        equipment=tuple(
-            EquipmentItem(
-                name=item["name"],
-                issued_on=date.fromisoformat(item["issued_on"]),
-            )
-            for item in record["equipment"]
-        ),
+        equipment=equipment,
     )
