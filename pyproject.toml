@@ -30,6 +30,9 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
+# Check Python files only. Recent ruff versions also format Markdown, which
+# would make CI depend on the formatting of documents such as the lab brief.
+include = ["*.py", "*.pyi"]
 
 [tool.ruff.lint]
 # A deliberately small rule set: pycodestyle errors, pyflakes, import sorting.
