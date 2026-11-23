@@ -26,7 +26,7 @@ class EmployeeRepository:
     """
 
     def __init__(self, employees: dict[str, Employee]) -> None:
-        self._employees = employees
+        self._employees = employees  # employee_id -> Employee object
 
     def get_employee(self, employee_id: str) -> Employee:
         """Return the employee record with this id.
