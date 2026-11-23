@@ -1,0 +1,17 @@
+# Application settings. Every value here has a default in src/it_equipment/config.py,
+# so this file only needs to hold the ones worth seeing and editing.
+#
+# Each value can also be overridden by an environment variable, which is what a
+# container uses: the image stays the same and only the variable changes.
+
+[server]
+# Where the MCP server listens, and the address the client dials.
+# A container needs host = "0.0.0.0" to accept connections from outside itself.
+host = "127.0.0.1"   # MCP_HOST
+port = 8000          # MCP_PORT
+path = "/mcp"        # MCP_PATH
+
+[data]
+# Relative paths are resolved against this file's own folder, so they mean the
+# same thing no matter which directory the command is run from.
+employees = "data/employees.json"   # MCP_EMPLOYEES_FILE
