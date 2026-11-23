@@ -1,0 +1,58 @@
+[
+  {
+    "employee_id": "E001",
+    "name": "Priya Raman",
+    "role": "standard",
+    "hire_date": "2019-04-15",
+    "equipment": [
+      { "name": "laptop", "issued_on": "2022-03-01" },
+      { "name": "monitor", "issued_on": "2022-03-01" }
+    ]
+  },
+  {
+    "employee_id": "E002",
+    "name": "Daniel Okafor",
+    "role": "manager",
+    "hire_date": "2021-09-01",
+    "equipment": [
+      { "name": "laptop", "issued_on": "2025-02-10" },
+      { "name": "monitor", "issued_on": "2024-06-01" }
+    ]
+  },
+  {
+    "employee_id": "E003",
+    "name": "Sofia Brandt",
+    "role": "engineer",
+    "hire_date": "2015-01-12",
+    "equipment": [
+      { "name": "laptop", "issued_on": "2025-08-20" },
+      { "name": "monitor", "issued_on": "2023-02-14" },
+      { "name": "monitor", "issued_on": "2023-02-14" }
+    ]
+  },
+  {
+    "employee_id": "E004",
+    "name": "Marcus Webb",
+    "role": "standard",
+    "hire_date": "2026-11-02",
+    "equipment": []
+  },
+  {
+    "employee_id": "E005",
+    "name": "Aisha Nkemdirim",
+    "role": "engineer",
+    "hire_date": "2023-06-30",
+    "equipment": [
+      { "name": "laptop", "issued_on": "2023-07-03" },
+      { "name": "monitor", "issued_on": "2023-07-03" },
+      { "name": "docking station", "issued_on": "2023-07-03" }
+    ]
+  },
+  {
+    "employee_id": "E006",
+    "name": "Tomas Lindqvist",
+    "role": "manager",
+    "hire_date": "2024-02-29",
+    "equipment": [{ "name": "laptop", "issued_on": "2024-03-04" }]
+  }
+]
