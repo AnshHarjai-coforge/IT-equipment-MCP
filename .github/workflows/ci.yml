@@ -34,7 +34,4 @@ jobs:
         run: ruff format --check .
 
       - name: Run tests
-        # pytest exits 5 when it collects no tests. This branch has none yet,
-        # so 5 counts as success here; a real test failure (1) still fails CI.
-        # This guard is removed in the branch that adds the first test.
-        run: pytest || [ "$?" -eq 5 ]
+        run: pytest
