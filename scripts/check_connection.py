@@ -15,8 +15,8 @@ why it lives in scripts/ and not in the package.
 
 import asyncio
 
+from httpx2 import TransportError
 from mcp import Client
-from mcp.shared.exceptions import MCPError
 from mcp.types import CallToolResult
 
 from it_equipment.config import load_settings
@@ -72,10 +72,23 @@ async def check(url: str) -> None:
         print_result(missing)
 
 
+def first_cause(error: BaseException) -> BaseException:
+    """Dig the real error out from inside any number of nested groups.
+
+    The client does its network work in background tasks, and that machinery
+    wraps a failure in a group, sometimes in a group inside a group. Only the
+    exception at the bottom says what actually went wrong.
+    """
+    while isinstance(error, BaseExceptionGroup):
+        error = error.exceptions[0]
+
+    return error
+
+
 def report_unreachable(url: str, reason: BaseException) -> None:
     """Explain that the server could not be reached, without a stack trace.
 
-    The usual cause is simply that the server has not been started yet, which
+    The cause is almost always that the server has not been started, which
     deserves an instruction rather than a traceback.
     """
     print(f"Could not reach the MCP server at {url}")
@@ -92,13 +105,21 @@ async def main() -> None:
     try:
         await check(url)
     except ExceptionGroup as error:
-        # The client runs its transport in background tasks, and asyncio
-        # collects failures from those into a group. So even a single refused
-        # connection arrives wrapped in one, and the real cause is inside.
-        report_unreachable(url, error.exceptions[0])
-    except MCPError as error:
-        # A failure once the session is already established arrives on its own.
-        report_unreachable(url, error)
+        cause = first_cause(error)
+
+        # Only a failure to reach the server is handled here. It is the one
+        # mistake worth expecting - the server was never started - and it has
+        # an obvious fix. Anything else is a bug, and re-raising lets it crash
+        # with its traceback intact rather than be dressed up as a connection
+        # problem.
+        if not isinstance(cause, TransportError):
+            raise
+
+        report_unreachable(url, cause)
+
+        # A failed check should fail the command too, so that running this from
+        # a script or a pipeline cannot mistake it for success.
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

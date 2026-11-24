@@ -15,6 +15,11 @@ requires-python = ">=3.12"
 # local machine then run identical code.
 dependencies = [
     "mcp==2.3.0",
+    # The MCP SDK installs this itself, to make its HTTP requests. It is listed
+    # here as well because the connection check imports from it directly, to
+    # recognise a failure to reach the server, and a package should declare
+    # everything it imports rather than rely on another one bringing it along.
+    "httpx2==2.16.2",
 ]
 
 # Installed only for development and in CI, via: pip install -e ".[dev]"
