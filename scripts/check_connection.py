@@ -72,19 +72,6 @@ async def check(url: str) -> None:
         print_result(missing)
 
 
-def first_cause(error: BaseException) -> BaseException:
-    """Dig the real error out from inside any number of nested groups.
-
-    The client does its network work in background tasks, and that machinery
-    wraps a failure in a group, sometimes in a group inside a group. Only the
-    exception at the bottom says what actually went wrong.
-    """
-    while isinstance(error, BaseExceptionGroup):
-        error = error.exceptions[0]
-
-    return error
-
-
 def report_unreachable(url: str, reason: BaseException) -> None:
     """Explain that the server could not be reached, without a stack trace.
 
@@ -104,18 +91,13 @@ async def main() -> None:
 
     try:
         await check(url)
-    except ExceptionGroup as error:
-        cause = first_cause(error)
-
-        # Only a failure to reach the server is handled here. It is the one
-        # mistake worth expecting - the server was never started - and it has
-        # an obvious fix. Anything else is a bug, and re-raising lets it crash
-        # with its traceback intact rather than be dressed up as a connection
-        # problem.
-        if not isinstance(cause, TransportError):
-            raise
-
-        report_unreachable(url, cause)
+    # The star in "except*" is doing the work. The client runs its network
+    # tasks in the background, and that machinery wraps a failure in a group,
+    # sometimes in a group inside a group. "except*" searches inside those
+    # groups, so a transport error is caught however deeply it is buried, and
+    # anything that is not one is left alone to crash with its full traceback.
+    except* TransportError as unreachable:
+        report_unreachable(url, unreachable.exceptions[0])
 
         # A failed check should fail the command too, so that running this from
         # a script or a pipeline cannot mistake it for success.
