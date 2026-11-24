@@ -6,13 +6,18 @@ An internal IT equipment request handler, built as two pieces:
 - an **agent** that connects to that server as a client, investigates a natural-language
   request using those tools, and either answers it or escalates it for human review.
 
-The full requirements are in [`data/Lab/mcp_equipment_request_lab_formatted.md`](data/Lab/mcp_equipment_request_lab_formatted.md).
+The lab brief is [`data/Lab/mcp_equipment_request_lab_formatted.md`](data/Lab/mcp_equipment_request_lab_formatted.md).
+The policy rules, and what makes a request ambiguous, are defined in
+[`docs/requirements.md`](docs/requirements.md).
 
 ## Status
 
-The first tool, `get_employee_info`, is served over MCP and confirmed working end to end:
-the server registers it, and a client script connects and calls it. The remaining three
-tools and the agent are still to come.
+Two of the four tools are served over MCP and confirmed working end to end:
+
+- `get_employee_info`: an employee's role, tenure, and equipment with each item's age
+- `get_policy_limits`: what a role may hold, and after how many years each item is replaced
+
+`check_request_eligibility`, `flag_for_human_review` and the agent are still to come.
 
 ## Requirements
 
@@ -63,7 +68,7 @@ python -m it_equipment.server
 ```
 
 Then, in a second terminal, confirm the connection works. This lists the tools the server
-registered and calls one with both a known and an unknown employee id:
+registered and calls each one twice, with an input that exists and one that doesn't:
 
 ```bash
 python scripts/check_connection.py
@@ -83,6 +88,7 @@ changes one without the image being rebuilt:
 | `MCP_PORT` | port the server listens on | `8000` |
 | `MCP_PATH` | path the MCP endpoint lives at | `/mcp` |
 | `MCP_EMPLOYEES_FILE` | the employee records to load | `data/employees.json` |
+| `MCP_POLICIES_FILE` | the role policies to load | `data/policies.json` |
 
 The order is defaults, then `config.toml`, then the environment, each overriding the one
 before. Both the server and the client script read the same settings, so they cannot end up
@@ -94,19 +100,23 @@ MCP_PORT=9000 python scripts/check_connection.py   # terminal 2
 ```
 
 Note that policy rules are **not** settings. They are the thing the system exists to apply,
-so they belong in a data file under `data/` with tests asserting on them.
+so they live in `data/policies.json`, with a test asserting the whole table. Only the file's
+location is a setting.
 
 ## Layout
 
 ```
-src/it_equipment/models.py        Employee and EquipmentItem data types
-src/it_equipment/repository.py    employee lookups: get_employee
+src/it_equipment/models.py        data types: employees, equipment, role policies
+src/it_equipment/repository.py    employee and policy lookups, and the item catalogue
 src/it_equipment/config.py        Settings, and the loader that layers them
 src/it_equipment/server.py        the MCP server and its tools
-scripts/check_connection.py       connects as a client and calls a tool
+scripts/check_connection.py       connects as a client and calls each tool
 config.toml                       application settings
 tests/                            unit tests, run against the plain functions
+docs/requirements.md              requirements and policy rules (deliverable 1)
 data/employees.json               mock employee records
+data/policies.json                mock policy rules, one record per role
+data/report/                      captured evidence for the lab report
 data/Lab/                         the lab brief
 .github/workflows/ci.yml          the CI pipeline
 ```
