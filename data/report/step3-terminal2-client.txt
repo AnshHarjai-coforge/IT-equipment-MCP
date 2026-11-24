@@ -8,7 +8,7 @@ Tools the server is offering (1):
 
 Calling get_employee_info('E001') - a known employee:
   is_error:           False
-  structured_content: {'employee_id': 'E001', 'name': 'Priya Raman', 'role': 'standard', 'tenure_years': 7, 'equipment': [{'name': 'laptop', 'issued_on': '2022-03-01'}, {'name': 'monitor', 'issued_on': '2022-03-01'}]}
+  structured_content: {'employee_id': 'E001', 'name': 'Priya Raman', 'role': 'standard', 'tenure_years': 7, 'equipment': [{'name': 'laptop', 'age_years': 4}, {'name': 'monitor', 'age_years': 4}]}
   text:               {
   "employee_id": "E001",
   "name": "Priya Raman",
@@ -17,11 +17,11 @@ Calling get_employee_info('E001') - a known employee:
   "equipment": [
     {
       "name": "laptop",
-      "issued_on": "2022-03-01"
+      "age_years": 4
     },
     {
       "name": "monitor",
-      "issued_on": "2022-03-01"
+      "age_years": 4
     }
   ]
 }

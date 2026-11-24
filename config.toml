@@ -15,3 +15,4 @@ path = "/mcp"        # MCP_PATH
 # Relative paths are resolved against this file's own folder, so they mean the
 # same thing no matter which directory the command is run from.
 employees = "data/employees.json"   # MCP_EMPLOYEES_FILE
+policies = "data/policies.json"     # MCP_POLICIES_FILE

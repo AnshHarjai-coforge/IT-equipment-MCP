@@ -22,7 +22,13 @@ from it_equipment.config import (
 )
 
 # Every setting that can be overridden from the environment.
-ENVIRONMENT_VARIABLES = ["MCP_HOST", "MCP_PORT", "MCP_PATH", "MCP_EMPLOYEES_FILE"]
+ENVIRONMENT_VARIABLES = [
+    "MCP_HOST",
+    "MCP_PORT",
+    "MCP_PATH",
+    "MCP_EMPLOYEES_FILE",
+    "MCP_POLICIES_FILE",
+]
 
 
 @pytest.fixture(autouse=True)
@@ -136,6 +142,35 @@ def test_a_relative_data_path_resolves_against_the_config_file(tmp_path):
     assert settings.employees_file == tmp_path / "data" / "employees.json"
 
 
+def test_the_policies_file_comes_from_the_config_file(tmp_path):
+    config_file = write_config(
+        tmp_path,
+        """
+        [data]
+        policies = "rules/policies.json"
+        """,
+    )
+
+    settings = load_settings(config_file)
+
+    assert settings.policies_file == tmp_path / "rules" / "policies.json"
+
+
+def test_the_environment_beats_the_config_file_for_the_policies_file(tmp_path, monkeypatch):
+    config_file = write_config(
+        tmp_path,
+        """
+        [data]
+        policies = "data/policies.json"
+        """,
+    )
+    monkeypatch.setenv("MCP_POLICIES_FILE", "/srv/policies.json")
+
+    settings = load_settings(config_file)
+
+    assert settings.policies_file == Path("/srv/policies.json")
+
+
 def test_an_absolute_data_path_is_left_alone():
     resolved = resolve_path("/etc/employees.json", Path("/somewhere/else"))
 
@@ -149,5 +184,6 @@ def test_the_committed_config_file_loads():
     assert settings.host == "127.0.0.1"
     assert settings.port == 8000
     assert settings.mcp_url() == "http://127.0.0.1:8000/mcp"
-    # The path in the committed file must point at the real employee data.
+    # The paths in the committed file must point at the real data.
     assert settings.employees_file.exists()
+    assert settings.policies_file.exists()

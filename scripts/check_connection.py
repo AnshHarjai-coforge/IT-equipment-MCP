@@ -1,7 +1,9 @@
 """Prove that the MCP server works, by connecting to it as a client.
 
-This is the check the lab asks for before any more tools are built: start the
-server, run this, and confirm a real response comes back over the wire.
+This began as the check the lab asks for before any more tools are built:
+start the server, run this, and confirm a real response comes back over the
+wire. It now calls each tool as it is added, so CI proves every one of them is
+registered and callable. The one-tool output is kept in data/report/.
 
 Run it in a second terminal, with the server already running:
 
@@ -25,6 +27,10 @@ from it_equipment.config import load_settings
 KNOWN_EMPLOYEE_ID = "E001"
 UNKNOWN_EMPLOYEE_ID = "E999"
 
+# A role in data/policies.json, and one that deliberately has no policy.
+KNOWN_ROLE = "standard"
+UNKNOWN_ROLE = "contractor"
+
 
 def print_result(result: CallToolResult) -> None:
     """Print one tool result: the error flag, the data, and the text."""
@@ -38,10 +44,10 @@ def print_result(result: CallToolResult) -> None:
 
 
 async def check(url: str) -> None:
-    """Connect to the server, list its tools, then call one twice.
+    """Connect to the server, list its tools, then call each tool twice.
 
-    Once with an employee who exists and once with one who does not, so a
-    single run shows both the normal path and the error path.
+    Once with an input that exists and once with one that does not, so a
+    single run shows both the normal path and the error path for every tool.
     """
     async with Client(url) as client:
         print(f"Connected to {url}")
@@ -70,6 +76,18 @@ async def check(url: str) -> None:
         print(f"Calling get_employee_info({UNKNOWN_EMPLOYEE_ID!r}) - no such employee:")
         missing = await client.call_tool("get_employee_info", {"employee_id": UNKNOWN_EMPLOYEE_ID})
         print_result(missing)
+        print()
+
+        # The second tool, both paths again. An unknown role is a question the
+        # tool cannot answer, so it arrives the same way an unknown id does.
+        print(f"Calling get_policy_limits({KNOWN_ROLE!r}) - a role with a policy:")
+        limits = await client.call_tool("get_policy_limits", {"role": KNOWN_ROLE})
+        print_result(limits)
+        print()
+
+        print(f"Calling get_policy_limits({UNKNOWN_ROLE!r}) - no such role:")
+        no_policy = await client.call_tool("get_policy_limits", {"role": UNKNOWN_ROLE})
+        print_result(no_policy)
 
 
 def report_unreachable(url: str, reason: BaseException) -> None:

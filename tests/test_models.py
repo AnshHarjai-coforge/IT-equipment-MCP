@@ -1,8 +1,14 @@
-"""Unit tests for the Employee and EquipmentItem data types."""
+"""Unit tests for the data types: employees, their equipment, and the policies."""
 
 from datetime import date
 
-from it_equipment.models import Employee, EquipmentItem
+from it_equipment.models import (
+    Employee,
+    EquipmentItem,
+    ItemAllowance,
+    RolePolicy,
+    whole_years_between,
+)
 
 
 def make_employee(hire_date: date) -> Employee:
@@ -14,6 +20,26 @@ def make_employee(hire_date: date) -> Employee:
         hire_date=hire_date,
         equipment=[],
     )
+
+
+def test_whole_years_between_counts_only_completed_years():
+    assert whole_years_between(date(2022, 3, 1), date(2026, 2, 28)) == 3
+    assert whole_years_between(date(2022, 3, 1), date(2026, 3, 1)) == 4
+
+
+def test_whole_years_between_is_zero_within_the_first_year():
+    assert whole_years_between(date(2026, 11, 2), date(2026, 11, 23)) == 0
+
+
+def test_a_29_february_start_completes_its_year_on_1_march_in_a_common_year():
+    # 2025 has no 29 February, so the first year ends a day later than 28 February.
+    assert whole_years_between(date(2024, 2, 29), date(2025, 2, 28)) == 0
+    assert whole_years_between(date(2024, 2, 29), date(2025, 3, 1)) == 1
+
+
+def test_a_29_february_start_completes_its_year_on_29_february_in_a_leap_year():
+    assert whole_years_between(date(2024, 2, 29), date(2028, 2, 28)) == 3
+    assert whole_years_between(date(2024, 2, 29), date(2028, 2, 29)) == 4
 
 
 def test_tenure_years_counts_whole_years_after_the_anniversary():
@@ -41,6 +67,14 @@ def test_tenure_years_is_zero_for_a_new_hire():
     assert employee.tenure_years(as_of=date(2026, 11, 23)) == 0
 
 
+def test_tenure_years_for_a_29_february_hire():
+    # E006 Tomas in the mock data was hired on this date.
+    employee = make_employee(date(2024, 2, 29))
+
+    assert employee.tenure_years(as_of=date(2025, 2, 28)) == 0
+    assert employee.tenure_years(as_of=date(2025, 3, 1)) == 1
+
+
 def test_equipment_item_holds_a_real_date():
     item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
 
@@ -48,10 +82,30 @@ def test_equipment_item_holds_a_real_date():
     assert item.issued_on.year == 2022
 
 
-def test_equipment_item_to_dict_uses_a_text_date():
+def test_age_years_counts_whole_years_since_issue():
     item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
 
-    assert item.to_dict() == {"name": "laptop", "issued_on": "2022-03-01"}
+    assert item.age_years(as_of=date(2026, 2, 28)) == 3
+    assert item.age_years(as_of=date(2026, 3, 1)) == 4
+
+
+def test_age_years_is_zero_for_an_item_issued_this_year():
+    item = EquipmentItem(name="laptop", issued_on=date(2026, 11, 2))
+
+    assert item.age_years(as_of=date(2026, 11, 23)) == 0
+
+
+def test_age_years_for_an_item_issued_on_29_february():
+    item = EquipmentItem(name="laptop", issued_on=date(2024, 2, 29))
+
+    assert item.age_years(as_of=date(2025, 2, 28)) == 0
+    assert item.age_years(as_of=date(2025, 3, 1)) == 1
+
+
+def test_equipment_item_to_dict_reports_age_instead_of_the_issue_date():
+    item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
+
+    assert item.to_dict(as_of=date(2026, 11, 23)) == {"name": "laptop", "age_years": 4}
 
 
 def test_employee_to_dict_is_the_shape_the_tool_returns():
@@ -68,7 +122,7 @@ def test_employee_to_dict_is_the_shape_the_tool_returns():
         "name": "Priya Raman",
         "role": "standard",
         "tenure_years": 7,
-        "equipment": [{"name": "laptop", "issued_on": "2022-03-01"}],
+        "equipment": [{"name": "laptop", "age_years": 4}],
     }
 
 
@@ -79,3 +133,27 @@ def test_employee_to_dict_replaces_the_hire_date_with_tenure():
 
     assert "hire_date" not in result
     assert result["tenure_years"] == 7
+
+
+def test_item_allowance_to_dict():
+    allowance = ItemAllowance(item="monitor", max_quantity=2, refresh_years=4)
+
+    assert allowance.to_dict() == {"item": "monitor", "max_quantity": 2, "refresh_years": 4}
+
+
+def test_role_policy_to_dict_is_the_shape_the_tool_returns():
+    policy = RolePolicy(
+        role="standard",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=4),
+            ItemAllowance(item="monitor", max_quantity=1, refresh_years=3),
+        ],
+    )
+
+    assert policy.to_dict() == {
+        "role": "standard",
+        "items": [
+            {"item": "laptop", "max_quantity": 1, "refresh_years": 4},
+            {"item": "monitor", "max_quantity": 1, "refresh_years": 3},
+        ],
+    }

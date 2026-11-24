@@ -9,10 +9,18 @@ Terminal output captured for the report, in the order the lab brief lists its de
 | `step3-terminal1-server.txt` | #2 — the minimal server starting and serving |
 | `step3-terminal2-client.txt` | #2 — the client connecting, listing one tool, and calling it |
 
-These two are captured **now, and cannot be recaptured later.** Deliverable #2 asks for proof
-that a *one-tool* server and client connection worked *before* the full build. Once the other
-three tools are registered, `tools/list` will report four tools and the output will no longer
-evidence that milestone.
+Deliverable #2 asks for proof that a *one-tool* server and client connection worked *before*
+the full build. Once a second tool is registered, `tools/list` reports more than one tool and
+the output no longer evidences that milestone, so **these files must not be recaptured again.**
+
+They were recaptured **once**, deliberately, on 2026-11-24. Equipment in `get_employee_info`
+changed from reporting `issued_on` (a date) to `age_years` (a number), so that the model never
+has to subtract dates itself. The original capture showed the old shape, which would have
+contradicted the server code in the rest of the report. The recapture was taken after that
+change and before `get_policy_limits` was registered, with both files from the same run: the
+client's connection port appears in the server's log. `scripts/check_connection.py` goes on to
+call each new tool as it is added, so its output from then on is not the one-tool record;
+these two files are.
 
 Worth noting in the report: terminal 1 shows the server logging the failed call for `E999`,
 while terminal 2 shows the same failure arriving at the client as `is_error: True` with a

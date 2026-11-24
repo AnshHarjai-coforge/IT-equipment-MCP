@@ -37,10 +37,10 @@ jobs:
         run: pytest
 
       # The tests above call the plain functions directly, so nothing so far
-      # proves the server starts or that the tool is registered with it. This
+      # proves the server starts or that the tools are registered with it. This
       # runs the same check by hand, which is what would catch a missing
       # decorator or a change of transport.
-      - name: Confirm the server starts and its tool is callable
+      - name: Confirm the server starts and its tools are callable
         run: |
           python -m it_equipment.server > server.log 2>&1 &
           python - <<'PY'

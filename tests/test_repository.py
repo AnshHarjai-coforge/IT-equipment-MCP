@@ -1,4 +1,4 @@
-"""Unit tests for EmployeeRepository, called directly as plain Python.
+"""Unit tests for EmployeeRepository and PolicyRepository, called directly as plain Python.
 
 These tests deliberately do not go through the MCP protocol. They check the
 logic the tool will wrap, so a failure points at the logic and not the plumbing.
@@ -10,16 +10,20 @@ from pathlib import Path
 
 import pytest
 
-from it_equipment.models import Employee, EquipmentItem
+from it_equipment.models import Employee, EquipmentItem, ItemAllowance, RolePolicy
 from it_equipment.repository import (
     EmployeeNotFoundError,
     EmployeeRepository,
+    PolicyRepository,
+    RoleNotFoundError,
     load_employees_from_json,
+    load_policies_from_json,
 )
 
 # The committed mock data. __file__ is this test file, so its parent is tests/
 # and the parent of that is the repository root.
 DATA_FILE = Path(__file__).parent.parent / "data" / "employees.json"
+POLICIES_FILE = Path(__file__).parent.parent / "data" / "policies.json"
 
 # A fixed date, so every expected tenure below is a constant.
 TODAY = date(2026, 11, 23)
@@ -117,3 +121,121 @@ def test_the_committed_data_file_loads():
 
     assert employee.role == "standard"
     assert employee.tenure_years(as_of=TODAY) == 7
+
+
+@pytest.fixture
+def policies() -> PolicyRepository:
+    """A two-role policy repository built in memory, with no file involved."""
+    standard = RolePolicy(
+        role="standard",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=4),
+            ItemAllowance(item="monitor", max_quantity=1, refresh_years=3),
+        ],
+    )
+    engineer = RolePolicy(
+        role="engineer",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=3),
+            ItemAllowance(item="docking station", max_quantity=1, refresh_years=4),
+        ],
+    )
+
+    return PolicyRepository({"standard": standard, "engineer": engineer})
+
+
+def test_returns_the_policy_for_a_known_role(policies):
+    policy = policies.get_policy("standard")
+
+    assert policy.role == "standard"
+    assert policy.items[1] == ItemAllowance(item="monitor", max_quantity=1, refresh_years=3)
+
+
+def test_unknown_role_raises(policies):
+    with pytest.raises(RoleNotFoundError):
+        policies.get_policy("contractor")
+
+
+def test_the_unknown_role_message_lists_the_known_roles(policies):
+    """Whoever reads the message can see what was expected, not only what was wrong."""
+    with pytest.raises(RoleNotFoundError) as raised:
+        policies.get_policy("contractor")
+
+    message = str(raised.value)
+    assert "contractor" in message
+    assert "standard" in message
+    assert "engineer" in message
+
+
+def test_roles_are_matched_exactly(policies):
+    """A near miss is not quietly treated as the role it resembles."""
+    with pytest.raises(RoleNotFoundError):
+        policies.get_policy("Standard")
+
+
+def test_the_catalogue_lists_every_item_once(policies):
+    # The laptop appears under both roles but is listed once, in first-seen order.
+    assert policies.catalogue() == ["laptop", "monitor", "docking station"]
+
+
+def test_loading_policies_from_json(tmp_path):
+    record = {
+        "role": "manager",
+        "items": [{"item": "laptop", "max_quantity": 1, "refresh_years": 2}],
+    }
+    path = tmp_path / "policies.json"
+    path.write_text(json.dumps([record]), encoding="utf-8")
+
+    policies = load_policies_from_json(path)
+
+    assert policies.get_policy("manager") == RolePolicy(
+        role="manager",
+        items=[ItemAllowance(item="laptop", max_quantity=1, refresh_years=2)],
+    )
+
+
+def test_the_committed_policies_file_holds_the_agreed_rules():
+    """A typo in data/policies.json should fail CI, not a live demo.
+
+    The whole table is asserted, so any change to what the system approves has
+    to be made here as well, on purpose.
+    """
+    policies = load_policies_from_json(POLICIES_FILE)
+
+    assert policies.get_policy("standard").to_dict() == {
+        "role": "standard",
+        "items": [
+            {"item": "laptop", "max_quantity": 1, "refresh_years": 4},
+            {"item": "monitor", "max_quantity": 1, "refresh_years": 3},
+        ],
+    }
+    assert policies.get_policy("engineer").to_dict() == {
+        "role": "engineer",
+        "items": [
+            {"item": "laptop", "max_quantity": 1, "refresh_years": 3},
+            {"item": "monitor", "max_quantity": 2, "refresh_years": 4},
+            {"item": "docking station", "max_quantity": 1, "refresh_years": 4},
+        ],
+    }
+    assert policies.get_policy("manager").to_dict() == {
+        "role": "manager",
+        "items": [
+            {"item": "laptop", "max_quantity": 1, "refresh_years": 2},
+            {"item": "monitor", "max_quantity": 2, "refresh_years": 3},
+            {"item": "docking station", "max_quantity": 1, "refresh_years": 4},
+        ],
+    }
+    assert policies.catalogue() == ["laptop", "monitor", "docking station"]
+
+
+def test_every_employee_role_has_a_policy():
+    """An employee whose role has no policy could never have a request checked."""
+    policies = load_policies_from_json(POLICIES_FILE)
+    # The raw records are read here only to find every role in use. The
+    # repository has no "list all employees" method, and the tool code has no
+    # reason to need one.
+    records = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+
+    for record in records:
+        # Raises RoleNotFoundError, and so fails the test, for a missing role.
+        policies.get_policy(record["role"])

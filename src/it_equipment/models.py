@@ -1,4 +1,4 @@
-"""The data types that describe an employee and the equipment they hold.
+"""The data types that describe employees, their equipment, and the policies.
 
 These are plain data classes with no file or network access, so they can be
 created directly in a test without any setup.
@@ -8,6 +8,37 @@ from dataclasses import dataclass
 from datetime import date
 
 
+def whole_years_between(start: date, end: date) -> int:
+    """Return how many full years have passed from one date to a later one.
+
+    Both tenure and equipment age are counted this way. Keeping the anniversary
+    logic in one function means the two can never disagree about when a year
+    has been completed.
+    """
+    # Subtracting the years alone is usually one too many, because the
+    # current year is only part way through. Someone hired on 2020-03-01
+    # has not served six years on 2026-02-28, only five.
+    years = end.year - start.year
+
+    anniversary_passed = True
+
+    if end.month < start.month:
+        # Earlier month than the start month, so the anniversary is ahead.
+        anniversary_passed = False
+    elif end.month == start.month:
+        # A start date of 29 February also lands here. In a year without one,
+        # 28 February is still short of the 29th, so the year is completed on
+        # 1 March instead.
+        if end.day < start.day:
+            # Right month, but the day has not come round yet.
+            anniversary_passed = False
+
+    if not anniversary_passed:
+        years -= 1
+
+    return years
+
+
 @dataclass(frozen=True)
 class EquipmentItem:
     """One piece of equipment currently on file for an employee."""
@@ -15,11 +46,24 @@ class EquipmentItem:
     name: str
     issued_on: date
 
-    def to_dict(self) -> dict:
-        """Convert to plain types that can be written as JSON."""
+    def age_years(self, as_of: date) -> int:
+        """Return how many whole years the item has been held as of a given date.
+
+        The date is passed in for the same reason as in tenure_years: the
+        answer depends only on the inputs, so a test can assert a fixed number.
+        """
+        return whole_years_between(self.issued_on, as_of)
+
+    def to_dict(self, as_of: date) -> dict:
+        """Convert to plain types that can be written as JSON.
+
+        The issue date is replaced by the age in whole years, which is what the
+        refresh rules are written in terms of. The model reading this gets a
+        number to relay, never a date it would have to subtract itself.
+        """
         return {
             "name": self.name,
-            "issued_on": self.issued_on.isoformat(),
+            "age_years": self.age_years(as_of),
         }
 
 
@@ -41,40 +85,23 @@ class Employee:
         answer, so a test can assert a fixed number instead of one that
         changes as the calendar moves on.
         """
-        # Subtracting the years alone is usually one too many, because the
-        # current year is only part way through. Someone hired on 2020-03-01
-        # has not served six years on 2026-02-28, only five.
-        years = as_of.year - self.hire_date.year
-
-        anniversary_passed = True
-
-        if as_of.month < self.hire_date.month:
-            # Earlier month than the hire month, so the anniversary is ahead.
-            anniversary_passed = False
-        elif as_of.month == self.hire_date.month:
-            if as_of.day < self.hire_date.day:
-                # Right month, but the day has not come round yet.
-                anniversary_passed = False
-
-        if not anniversary_passed:
-            years -= 1
-
-        return years
+        return whole_years_between(self.hire_date, as_of)
 
     def to_dict(self, as_of: date) -> dict:
         """Convert to plain types, ready to be returned by an MCP tool.
 
         This is the shape the get_employee_info tool answers with, and the one
-        place where the conversion to JSON happens on the way out. Dates become
-        text in ISO format (YYYY-MM-DD), because JSON has no date type.
+        place where the conversion to JSON happens on the way out.
 
-        The hire date is replaced by tenure_years, which is what the policy
-        rules are written in terms of. It is calculated here from as_of rather
-        than stored, so it cannot go stale.
+        No dates are returned. The hire date is replaced by tenure_years and
+        each issue date by the item's age_years, both calculated here from
+        as_of rather than stored, so neither can go stale.
         """
         equipment = []
         for item in self.equipment:
-            equipment.append(item.to_dict())
+            # Each item needs the same date, so its age is measured on the
+            # same day as the tenure beside it.
+            equipment.append(item.to_dict(as_of))
 
         return {
             "employee_id": self.employee_id,
@@ -82,4 +109,47 @@ class Employee:
             "role": self.role,
             "tenure_years": self.tenure_years(as_of),
             "equipment": equipment,
+        }
+
+
+@dataclass(frozen=True)
+class ItemAllowance:
+    """What one role may hold of one item, and how often it is replaced."""
+
+    item: str
+    max_quantity: int
+    refresh_years: int
+
+    def to_dict(self) -> dict:
+        """Convert to plain types that can be written as JSON."""
+        return {
+            "item": self.item,
+            "max_quantity": self.max_quantity,
+            "refresh_years": self.refresh_years,
+        }
+
+
+@dataclass(frozen=True)
+class RolePolicy:
+    """Everything one role is eligible for.
+
+    An item that is missing from the list is one the role is not issued at
+    all, so there is no separate "not allowed" entry.
+    """
+
+    role: str
+    items: list[ItemAllowance]
+
+    def to_dict(self) -> dict:
+        """Convert to plain types, ready to be returned by an MCP tool.
+
+        This is the shape the get_policy_limits tool answers with.
+        """
+        items = []
+        for allowance in self.items:
+            items.append(allowance.to_dict())
+
+        return {
+            "role": self.role,
+            "items": items,
         }
