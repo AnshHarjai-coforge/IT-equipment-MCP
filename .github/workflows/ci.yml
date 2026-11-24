@@ -35,3 +35,36 @@ jobs:
 
       - name: Run tests
         run: pytest
+
+      # The tests above call the plain functions directly, so nothing so far
+      # proves the server starts or that the tool is registered with it. This
+      # runs the same check by hand, which is what would catch a missing
+      # decorator or a change of transport.
+      - name: Confirm the server starts and its tool is callable
+        run: |
+          python -m it_equipment.server > server.log 2>&1 &
+          python - <<'PY'
+          import socket
+          import sys
+          import time
+
+          from it_equipment.config import load_settings
+
+          settings = load_settings()
+
+          # The server needs a moment to bind the port. Without this wait the
+          # client would run first and be refused a connection.
+          for _ in range(60):
+              try:
+                  socket.create_connection((settings.host, settings.port), timeout=0.5).close()
+                  sys.exit(0)
+              except OSError:
+                  time.sleep(0.5)
+
+          sys.exit(f"the server never listened on {settings.host}:{settings.port}")
+          PY
+          python scripts/check_connection.py
+
+      - name: Show the server log if the check failed
+        if: failure()
+        run: cat server.log
