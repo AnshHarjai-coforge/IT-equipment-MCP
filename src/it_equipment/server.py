@@ -28,6 +28,7 @@ from it_equipment.repository import (
     PolicyRepository,
     RoleNotFoundError,
     load_employees_from_json,
+    load_policies_from_json,
 )
 
 
@@ -77,10 +78,10 @@ def policy_limits(policies: PolicyRepository, role: str) -> dict[str, Any]:
     return policy.to_dict()
 
 
-def build_server(repository: EmployeeRepository) -> MCPServer:
+def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> MCPServer:
     """Build the MCP server and register its tools.
 
-    The repository is handed in rather than loaded here, so a caller decides
+    The repositories are handed in rather than loaded here, so a caller decides
     where the data comes from and there is no module-level state. The entry
     point below is what does the loading.
     """
@@ -108,7 +109,27 @@ def build_server(repository: EmployeeRepository) -> MCPServer:
         """
         # The only place in the program that reads the clock. Everything below
         # this line receives the date as an argument.
-        return employee_info(repository, employee_id, as_of=date.today())
+        return employee_info(employees, employee_id, as_of=date.today())
+
+    # The same conventions as above: read-only, dict[str, Any] so a schema is
+    # published, and a docstring written for the model. It describes the limits
+    # without inviting the model to apply them, because deciding a request is
+    # the eligibility check's job, not the model's.
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    def get_policy_limits(role: str) -> dict[str, Any]:
+        """Get what a role is eligible for: each item, how many, and how often replaced.
+
+        For each item the role may hold, gives the most it may hold at once
+        (max_quantity) and after how many whole years one is replaced
+        (refresh_years).
+
+        Fails if no policy exists for that role; the error lists the roles
+        that have one.
+
+        Args:
+            role: The role exactly as get_employee_info reports it (e.g. standard)
+        """
+        return policy_limits(policies, role)
 
     return mcp
 
@@ -119,9 +140,10 @@ if __name__ == "__main__":
     # command-line tools import this module, and importing it must not start a
     # server.
     settings = load_settings()
-    repository = load_employees_from_json(settings.employees_file)
+    employees = load_employees_from_json(settings.employees_file)
+    policies = load_policies_from_json(settings.policies_file)
 
-    build_server(repository).run(
+    build_server(employees, policies).run(
         transport="streamable-http",
         host=settings.host,
         port=settings.port,
