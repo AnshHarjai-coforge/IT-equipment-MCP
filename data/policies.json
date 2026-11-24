@@ -1,0 +1,25 @@
+[
+  {
+    "role": "standard",
+    "items": [
+      { "item": "laptop", "max_quantity": 1, "refresh_years": 4 },
+      { "item": "monitor", "max_quantity": 1, "refresh_years": 3 }
+    ]
+  },
+  {
+    "role": "engineer",
+    "items": [
+      { "item": "laptop", "max_quantity": 1, "refresh_years": 3 },
+      { "item": "monitor", "max_quantity": 2, "refresh_years": 4 },
+      { "item": "docking station", "max_quantity": 1, "refresh_years": 4 }
+    ]
+  },
+  {
+    "role": "manager",
+    "items": [
+      { "item": "laptop", "max_quantity": 1, "refresh_years": 2 },
+      { "item": "monitor", "max_quantity": 2, "refresh_years": 3 },
+      { "item": "docking station", "max_quantity": 1, "refresh_years": 4 }
+    ]
+  }
+]
