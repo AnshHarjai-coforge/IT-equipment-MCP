@@ -16,7 +16,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 from it_equipment.models import Employee, EquipmentItem, ItemAllowance, RolePolicy
 from it_equipment.repository import EmployeeRepository, PolicyRepository
-from it_equipment.server import employee_info, policy_limits
+from it_equipment.server import employee_info, policy_limits, request_eligibility
 
 # A fixed date, so every expected tenure below is a constant.
 TODAY = date(2026, 11, 23)
@@ -132,6 +132,92 @@ def test_the_tool_error_names_the_role_and_lists_the_known_roles(policies):
 
 def test_the_policy_result_is_json_serialisable(policies):
     result = policy_limits(policies, "manager")
+
+    as_json = json.dumps(result)
+
+    assert json.loads(as_json) == result
+
+
+@pytest.fixture
+def employees_with_a_stray_role() -> EmployeeRepository:
+    """Priya, plus an employee whose role the policies fixture doesn't cover."""
+    priya = Employee(
+        employee_id="E100",
+        name="Priya Raman",
+        role="standard",
+        hire_date=date(2019, 4, 15),
+        equipment=[
+            EquipmentItem(name="laptop", issued_on=date(2022, 3, 1)),
+            EquipmentItem(name="monitor", issued_on=date(2022, 3, 1)),
+        ],
+    )
+    casey = Employee(
+        employee_id="E400",
+        name="Casey Doe",
+        role="contractor",
+        hire_date=date(2025, 1, 6),
+        equipment=[],
+    )
+
+    return EmployeeRepository({"E100": priya, "E400": casey})
+
+
+def test_eligibility_for_a_known_employee_returns_both_verdicts(
+    employees_with_a_stray_role, policies
+):
+    result = request_eligibility(employees_with_a_stray_role, policies, "E100", "laptop", TODAY)
+
+    assert result["employee_id"] == "E100"
+    assert result["role"] == "standard"
+    assert result["additional"]["verdict"] == "denied"
+    assert result["replacement"]["verdict"] == "approved"
+
+
+def test_eligibility_for_an_unknown_employee_raises_a_tool_error(
+    employees_with_a_stray_role, policies
+):
+    with pytest.raises(ToolError) as raised:
+        request_eligibility(employees_with_a_stray_role, policies, "E999", "laptop", TODAY)
+
+    assert "E999" in str(raised.value)
+
+
+def test_eligibility_for_a_role_with_no_policy_raises_a_tool_error(
+    employees_with_a_stray_role, policies
+):
+    """The employee exists, but the question still cannot be answered."""
+    with pytest.raises(ToolError) as raised:
+        request_eligibility(employees_with_a_stray_role, policies, "E400", "laptop", TODAY)
+
+    assert "contractor" in str(raised.value)
+
+
+def test_a_denial_is_returned_normally_not_raised(employees_with_a_stray_role, policies):
+    """Being outside policy is an answer, so it must not arrive as an error."""
+    result = request_eligibility(employees_with_a_stray_role, policies, "E100", "monitor", TODAY)
+
+    assert result["additional"]["verdict"] == "denied"
+
+
+def test_needs_review_is_returned_normally_not_raised(employees_with_a_stray_role, policies):
+    result = request_eligibility(
+        employees_with_a_stray_role, policies, "E100", "standing desk", TODAY
+    )
+
+    assert result["additional"]["verdict"] == "needs_review"
+
+
+def test_the_item_is_trimmed_and_lower_cased(employees_with_a_stray_role, policies):
+    """ "Monitor " must not be mistaken for an item no policy covers."""
+    result = request_eligibility(employees_with_a_stray_role, policies, "E100", "Monitor ", TODAY)
+
+    assert result["item"] == "monitor"
+    assert result["held"] == 1
+    assert result["additional"]["verdict"] == "denied"
+
+
+def test_the_eligibility_result_is_json_serialisable(employees_with_a_stray_role, policies):
+    result = request_eligibility(employees_with_a_stray_role, policies, "E100", "laptop", TODAY)
 
     as_json = json.dumps(result)
 
