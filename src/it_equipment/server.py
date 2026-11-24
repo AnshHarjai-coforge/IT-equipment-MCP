@@ -172,6 +172,35 @@ def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> M
         """
         return policy_limits(policies, role)
 
+    # Read-only like the other two: it decides, but records nothing. The
+    # docstring tells the model that the verdict is the decision, so it relays
+    # one rather than reasoning its way to its own.
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    def check_request_eligibility(employee_id: str, item: str) -> dict[str, Any]:
+        """Decide whether an employee's request for an item is within policy.
+
+        Always gives two verdicts. "additional" answers a request for one
+        more, kept alongside what the employee already holds. "replacement"
+        answers a request for a new one in place of their oldest, which goes
+        back. Use the verdict that matches what the employee asked for.
+
+        Each verdict is "approved", "denied" or "needs_review", with a reason
+        to relay. The verdict is the decision: do not recalculate it from the
+        other fields. "needs_review" means a person must decide. When a
+        replacement is denied only because the item is too new,
+        next_eligible_on gives the date it becomes due; otherwise it is null,
+        and no date should be offered.
+
+        Fails if no employee has that id, or if the employee's role has no
+        policy. A denial is not a failure.
+
+        Args:
+            employee_id: The employee's id (e.g. E001)
+            item: The item in the policy's own words (e.g. laptop, monitor,
+                docking station), not a brand or a description
+        """
+        return request_eligibility(employees, policies, employee_id, item, as_of=date.today())
+
     return mcp
 
 
