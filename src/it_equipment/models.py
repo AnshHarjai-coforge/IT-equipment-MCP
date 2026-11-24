@@ -162,6 +162,27 @@ class RolePolicy:
     role: str
     items: list[ItemAllowance]
 
+    def issues(self, item: str) -> bool:
+        """Return whether this role is issued the item at all."""
+        for allowance in self.items:
+            if allowance.item == item:
+                return True
+
+        return False
+
+    def allowance_for(self, item: str) -> ItemAllowance:
+        """Return this role's allowance for the item.
+
+        Raises KeyError if the role is not issued the item. Call issues()
+        first: not being issued an item is a normal answer, and this raises
+        only so that a forgotten check can never pass as an allowance of None.
+        """
+        for allowance in self.items:
+            if allowance.item == item:
+                return allowance
+
+        raise KeyError(f"The {self.role} role is not issued a {item}")
+
     def to_dict(self) -> dict:
         """Convert to plain types, ready to be returned by an MCP tool.
 

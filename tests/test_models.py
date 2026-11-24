@@ -2,6 +2,8 @@
 
 from datetime import date, timedelta
 
+import pytest
+
 from it_equipment.models import (
     Employee,
     EquipmentItem,
@@ -188,3 +190,32 @@ def test_role_policy_to_dict_is_the_shape_the_tool_returns():
             {"item": "monitor", "max_quantity": 1, "refresh_years": 3},
         ],
     }
+
+
+def make_standard_policy() -> RolePolicy:
+    return RolePolicy(
+        role="standard",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=4),
+            ItemAllowance(item="monitor", max_quantity=1, refresh_years=3),
+        ],
+    )
+
+
+def test_issues_is_true_for_an_item_the_role_holds():
+    assert make_standard_policy().issues("monitor") is True
+
+
+def test_issues_is_false_for_an_item_the_role_is_not_issued():
+    assert make_standard_policy().issues("docking station") is False
+
+
+def test_allowance_for_returns_the_items_allowance():
+    allowance = make_standard_policy().allowance_for("monitor")
+
+    assert allowance == ItemAllowance(item="monitor", max_quantity=1, refresh_years=3)
+
+
+def test_allowance_for_an_item_not_issued_raises():
+    with pytest.raises(KeyError):
+        make_standard_policy().allowance_for("docking station")
