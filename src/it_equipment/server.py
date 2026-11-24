@@ -99,7 +99,10 @@ def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> M
     # the whole interface it gets.
     @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     def get_employee_info(employee_id: str) -> dict[str, Any]:
-        """Get an employee's role, tenure in whole years, and current equipment.
+        """Get an employee's role, tenure, and current equipment with each item's age.
+
+        Tenure (tenure_years) and each item's age (age_years) are whole years,
+        counted up to today.
 
         Fails if no employee has that id, so the id should be verified, not
         guessed.
