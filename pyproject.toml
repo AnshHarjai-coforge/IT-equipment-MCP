@@ -11,9 +11,16 @@ version = "0.1.0"
 description = "An MCP server and agent that handle internal IT equipment requests."
 requires-python = ">=3.12"
 
-# No runtime dependencies yet. The MCP SDK is added when the server is built,
-# so that every dependency here is one the code actually uses today.
-dependencies = []
+# Pinned exactly, for the same reason the development tools below are: CI and a
+# local machine then run identical code.
+dependencies = [
+    "mcp==2.3.0",
+    # The MCP SDK installs this itself, to make its HTTP requests. It is listed
+    # here as well because the connection check imports from it directly, to
+    # recognise a failure to reach the server, and a package should declare
+    # everything it imports rather than rely on another one bringing it along.
+    "httpx2==2.16.2",
+]
 
 # Installed only for development and in CI, via: pip install -e ".[dev]"
 # Versions are pinned exactly so CI and a local machine run identical tools.

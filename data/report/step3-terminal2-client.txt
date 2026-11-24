@@ -1,0 +1,32 @@
+$ python scripts/check_connection.py
+
+Connected to http://127.0.0.1:8000/mcp
+
+Tools the server is offering (1):
+  - get_employee_info
+      output schema: {'additionalProperties': True, 'title': 'get_employee_infoDictOutput', 'type': 'object'}
+
+Calling get_employee_info('E001') - a known employee:
+  is_error:           False
+  structured_content: {'employee_id': 'E001', 'name': 'Priya Raman', 'role': 'standard', 'tenure_years': 7, 'equipment': [{'name': 'laptop', 'issued_on': '2022-03-01'}, {'name': 'monitor', 'issued_on': '2022-03-01'}]}
+  text:               {
+  "employee_id": "E001",
+  "name": "Priya Raman",
+  "role": "standard",
+  "tenure_years": 7,
+  "equipment": [
+    {
+      "name": "laptop",
+      "issued_on": "2022-03-01"
+    },
+    {
+      "name": "monitor",
+      "issued_on": "2022-03-01"
+    }
+  ]
+}
+
+Calling get_employee_info('E999') - no such employee:
+  is_error:           True
+  structured_content: None
+  text:               Error executing tool get_employee_info: "No employee with id 'E999'"
