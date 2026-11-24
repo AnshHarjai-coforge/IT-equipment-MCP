@@ -17,6 +17,7 @@ import asyncio
 
 from mcp import Client
 from mcp.shared.exceptions import MCPError
+from mcp.types import CallToolResult
 
 from it_equipment.config import load_settings
 
@@ -25,7 +26,7 @@ KNOWN_EMPLOYEE_ID = "E001"
 UNKNOWN_EMPLOYEE_ID = "E999"
 
 
-def print_result(result) -> None:
+def print_result(result: CallToolResult) -> None:
     """Print one tool result: the error flag, the data, and the text."""
     print(f"  is_error:           {result.is_error}")
     print(f"  structured_content: {result.structured_content}")
@@ -37,7 +38,11 @@ def print_result(result) -> None:
 
 
 async def check(url: str) -> None:
-    """Connect to the server, list its tools, then call one three ways."""
+    """Connect to the server, list its tools, then call one twice.
+
+    Once with an employee who exists and once with one who does not, so a
+    single run shows both the normal path and the error path.
+    """
     async with Client(url) as client:
         print(f"Connected to {url}")
         print()
