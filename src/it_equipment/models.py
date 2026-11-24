@@ -8,6 +8,37 @@ from dataclasses import dataclass
 from datetime import date
 
 
+def whole_years_between(start: date, end: date) -> int:
+    """Return how many full years have passed from one date to a later one.
+
+    Both tenure and equipment age are counted this way. Keeping the anniversary
+    logic in one function means the two can never disagree about when a year
+    has been completed.
+    """
+    # Subtracting the years alone is usually one too many, because the
+    # current year is only part way through. Someone hired on 2020-03-01
+    # has not served six years on 2026-02-28, only five.
+    years = end.year - start.year
+
+    anniversary_passed = True
+
+    if end.month < start.month:
+        # Earlier month than the start month, so the anniversary is ahead.
+        anniversary_passed = False
+    elif end.month == start.month:
+        # A start date of 29 February also lands here. In a year without one,
+        # 28 February is still short of the 29th, so the year is completed on
+        # 1 March instead.
+        if end.day < start.day:
+            # Right month, but the day has not come round yet.
+            anniversary_passed = False
+
+    if not anniversary_passed:
+        years -= 1
+
+    return years
+
+
 @dataclass(frozen=True)
 class EquipmentItem:
     """One piece of equipment currently on file for an employee."""
@@ -41,25 +72,7 @@ class Employee:
         answer, so a test can assert a fixed number instead of one that
         changes as the calendar moves on.
         """
-        # Subtracting the years alone is usually one too many, because the
-        # current year is only part way through. Someone hired on 2020-03-01
-        # has not served six years on 2026-02-28, only five.
-        years = as_of.year - self.hire_date.year
-
-        anniversary_passed = True
-
-        if as_of.month < self.hire_date.month:
-            # Earlier month than the hire month, so the anniversary is ahead.
-            anniversary_passed = False
-        elif as_of.month == self.hire_date.month:
-            if as_of.day < self.hire_date.day:
-                # Right month, but the day has not come round yet.
-                anniversary_passed = False
-
-        if not anniversary_passed:
-            years -= 1
-
-        return years
+        return whole_years_between(self.hire_date, as_of)
 
     def to_dict(self, as_of: date) -> dict:
         """Convert to plain types, ready to be returned by an MCP tool.

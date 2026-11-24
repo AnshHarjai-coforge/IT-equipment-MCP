@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from it_equipment.models import Employee, EquipmentItem
+from it_equipment.models import Employee, EquipmentItem, whole_years_between
 
 
 def make_employee(hire_date: date) -> Employee:
@@ -14,6 +14,26 @@ def make_employee(hire_date: date) -> Employee:
         hire_date=hire_date,
         equipment=[],
     )
+
+
+def test_whole_years_between_counts_only_completed_years():
+    assert whole_years_between(date(2022, 3, 1), date(2026, 2, 28)) == 3
+    assert whole_years_between(date(2022, 3, 1), date(2026, 3, 1)) == 4
+
+
+def test_whole_years_between_is_zero_within_the_first_year():
+    assert whole_years_between(date(2026, 11, 2), date(2026, 11, 23)) == 0
+
+
+def test_a_29_february_start_completes_its_year_on_1_march_in_a_common_year():
+    # 2025 has no 29 February, so the first year ends a day later than 28 February.
+    assert whole_years_between(date(2024, 2, 29), date(2025, 2, 28)) == 0
+    assert whole_years_between(date(2024, 2, 29), date(2025, 3, 1)) == 1
+
+
+def test_a_29_february_start_completes_its_year_on_29_february_in_a_leap_year():
+    assert whole_years_between(date(2024, 2, 29), date(2028, 2, 28)) == 3
+    assert whole_years_between(date(2024, 2, 29), date(2028, 2, 29)) == 4
 
 
 def test_tenure_years_counts_whole_years_after_the_anniversary():
@@ -39,6 +59,14 @@ def test_tenure_years_is_zero_for_a_new_hire():
     employee = make_employee(date(2026, 11, 2))
 
     assert employee.tenure_years(as_of=date(2026, 11, 23)) == 0
+
+
+def test_tenure_years_for_a_29_february_hire():
+    # E006 Tomas in the mock data was hired on this date.
+    employee = make_employee(date(2024, 2, 29))
+
+    assert employee.tenure_years(as_of=date(2025, 2, 28)) == 0
+    assert employee.tenure_years(as_of=date(2025, 3, 1)) == 1
 
 
 def test_equipment_item_holds_a_real_date():
