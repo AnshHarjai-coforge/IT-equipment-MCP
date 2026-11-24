@@ -1,8 +1,14 @@
-"""Unit tests for the Employee and EquipmentItem data types."""
+"""Unit tests for the data types: employees, their equipment, and the policies."""
 
 from datetime import date
 
-from it_equipment.models import Employee, EquipmentItem, whole_years_between
+from it_equipment.models import (
+    Employee,
+    EquipmentItem,
+    ItemAllowance,
+    RolePolicy,
+    whole_years_between,
+)
 
 
 def make_employee(hire_date: date) -> Employee:
@@ -127,3 +133,27 @@ def test_employee_to_dict_replaces_the_hire_date_with_tenure():
 
     assert "hire_date" not in result
     assert result["tenure_years"] == 7
+
+
+def test_item_allowance_to_dict():
+    allowance = ItemAllowance(item="monitor", max_quantity=2, refresh_years=4)
+
+    assert allowance.to_dict() == {"item": "monitor", "max_quantity": 2, "refresh_years": 4}
+
+
+def test_role_policy_to_dict_is_the_shape_the_tool_returns():
+    policy = RolePolicy(
+        role="standard",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=4),
+            ItemAllowance(item="monitor", max_quantity=1, refresh_years=3),
+        ],
+    )
+
+    assert policy.to_dict() == {
+        "role": "standard",
+        "items": [
+            {"item": "laptop", "max_quantity": 1, "refresh_years": 4},
+            {"item": "monitor", "max_quantity": 1, "refresh_years": 3},
+        ],
+    }

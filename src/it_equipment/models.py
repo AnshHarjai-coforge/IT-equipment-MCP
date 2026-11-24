@@ -1,4 +1,4 @@
-"""The data types that describe an employee and the equipment they hold.
+"""The data types that describe employees, their equipment, and the policies.
 
 These are plain data classes with no file or network access, so they can be
 created directly in a test without any setup.
@@ -109,4 +109,47 @@ class Employee:
             "role": self.role,
             "tenure_years": self.tenure_years(as_of),
             "equipment": equipment,
+        }
+
+
+@dataclass(frozen=True)
+class ItemAllowance:
+    """What one role may hold of one item, and how often it is replaced."""
+
+    item: str
+    max_quantity: int
+    refresh_years: int
+
+    def to_dict(self) -> dict:
+        """Convert to plain types that can be written as JSON."""
+        return {
+            "item": self.item,
+            "max_quantity": self.max_quantity,
+            "refresh_years": self.refresh_years,
+        }
+
+
+@dataclass(frozen=True)
+class RolePolicy:
+    """Everything one role is eligible for.
+
+    An item that is missing from the list is one the role is not issued at
+    all, so there is no separate "not allowed" entry.
+    """
+
+    role: str
+    items: list[ItemAllowance]
+
+    def to_dict(self) -> dict:
+        """Convert to plain types, ready to be returned by an MCP tool.
+
+        This is the shape the get_policy_limits tool answers with.
+        """
+        items = []
+        for allowance in self.items:
+            items.append(allowance.to_dict())
+
+        return {
+            "role": self.role,
+            "items": items,
         }
