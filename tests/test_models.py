@@ -1,12 +1,13 @@
 """Unit tests for the data types: employees, their equipment, and the policies."""
 
-from datetime import date
+from datetime import date, timedelta
 
 from it_equipment.models import (
     Employee,
     EquipmentItem,
     ItemAllowance,
     RolePolicy,
+    add_whole_years,
     whole_years_between,
 )
 
@@ -40,6 +41,36 @@ def test_a_29_february_start_completes_its_year_on_1_march_in_a_common_year():
 def test_a_29_february_start_completes_its_year_on_29_february_in_a_leap_year():
     assert whole_years_between(date(2024, 2, 29), date(2028, 2, 28)) == 3
     assert whole_years_between(date(2024, 2, 29), date(2028, 2, 29)) == 4
+
+
+def test_add_whole_years_keeps_the_month_and_day():
+    assert add_whole_years(date(2025, 8, 20), 3) == date(2028, 8, 20)
+
+
+def test_add_whole_years_from_29_february_lands_on_1_march_in_a_common_year():
+    assert add_whole_years(date(2024, 2, 29), 1) == date(2025, 3, 1)
+
+
+def test_add_whole_years_from_29_february_stays_on_29_february_in_a_leap_year():
+    assert add_whole_years(date(2024, 2, 29), 4) == date(2028, 2, 29)
+
+
+def test_add_whole_years_agrees_with_whole_years_between():
+    """The due date is the first day on which the item is old enough.
+
+    For each start date, the years are complete on the date add_whole_years
+    returns and still one short the day before. The 29 February start covers
+    both a common year (2025) and a leap year (2028).
+    """
+    starts = [date(2022, 3, 1), date(2025, 8, 20), date(2024, 2, 29), date(2023, 12, 31)]
+
+    for start in starts:
+        for years in [1, 2, 3, 4]:
+            due = add_whole_years(start, years)
+            day_before = due - timedelta(days=1)
+
+            assert whole_years_between(start, due) == years
+            assert whole_years_between(start, day_before) == years - 1
 
 
 def test_tenure_years_counts_whole_years_after_the_anniversary():

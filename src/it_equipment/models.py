@@ -4,6 +4,7 @@ These are plain data classes with no file or network access, so they can be
 created directly in a test without any setup.
 """
 
+import calendar
 from dataclasses import dataclass
 from datetime import date
 
@@ -37,6 +38,27 @@ def whole_years_between(start: date, end: date) -> int:
         years -= 1
 
     return years
+
+
+def add_whole_years(start: date, years: int) -> date:
+    """Return the date a given number of whole years after a start date.
+
+    This is the reverse of whole_years_between, and is used to work out the
+    date an item becomes due for replacement. The two must agree: on the date
+    this returns, whole_years_between(start, ...) has just reached the number
+    of years added, and not a day earlier.
+    """
+    target_year = start.year + years
+
+    if start.month == 2 and start.day == 29:
+        if not calendar.isleap(target_year):
+            # There is no 29 February in that year. whole_years_between counts
+            # such a year as completed on 1 March, so the due date is 1 March
+            # too. Picking 28 February instead would name a day on which the
+            # item is still a year short.
+            return date(target_year, 3, 1)
+
+    return date(target_year, start.month, start.day)
 
 
 @dataclass(frozen=True)
