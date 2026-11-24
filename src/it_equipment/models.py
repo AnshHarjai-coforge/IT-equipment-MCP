@@ -46,11 +46,24 @@ class EquipmentItem:
     name: str
     issued_on: date
 
-    def to_dict(self) -> dict:
-        """Convert to plain types that can be written as JSON."""
+    def age_years(self, as_of: date) -> int:
+        """Return how many whole years the item has been held as of a given date.
+
+        The date is passed in for the same reason as in tenure_years: the
+        answer depends only on the inputs, so a test can assert a fixed number.
+        """
+        return whole_years_between(self.issued_on, as_of)
+
+    def to_dict(self, as_of: date) -> dict:
+        """Convert to plain types that can be written as JSON.
+
+        The issue date is replaced by the age in whole years, which is what the
+        refresh rules are written in terms of. The model reading this gets a
+        number to relay, never a date it would have to subtract itself.
+        """
         return {
             "name": self.name,
-            "issued_on": self.issued_on.isoformat(),
+            "age_years": self.age_years(as_of),
         }
 
 
@@ -78,16 +91,17 @@ class Employee:
         """Convert to plain types, ready to be returned by an MCP tool.
 
         This is the shape the get_employee_info tool answers with, and the one
-        place where the conversion to JSON happens on the way out. Dates become
-        text in ISO format (YYYY-MM-DD), because JSON has no date type.
+        place where the conversion to JSON happens on the way out.
 
-        The hire date is replaced by tenure_years, which is what the policy
-        rules are written in terms of. It is calculated here from as_of rather
-        than stored, so it cannot go stale.
+        No dates are returned. The hire date is replaced by tenure_years and
+        each issue date by the item's age_years, both calculated here from
+        as_of rather than stored, so neither can go stale.
         """
         equipment = []
         for item in self.equipment:
-            equipment.append(item.to_dict())
+            # Each item needs the same date, so its age is measured on the
+            # same day as the tenure beside it.
+            equipment.append(item.to_dict(as_of))
 
         return {
             "employee_id": self.employee_id,

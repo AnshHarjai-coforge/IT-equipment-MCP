@@ -76,10 +76,30 @@ def test_equipment_item_holds_a_real_date():
     assert item.issued_on.year == 2022
 
 
-def test_equipment_item_to_dict_uses_a_text_date():
+def test_age_years_counts_whole_years_since_issue():
     item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
 
-    assert item.to_dict() == {"name": "laptop", "issued_on": "2022-03-01"}
+    assert item.age_years(as_of=date(2026, 2, 28)) == 3
+    assert item.age_years(as_of=date(2026, 3, 1)) == 4
+
+
+def test_age_years_is_zero_for_an_item_issued_this_year():
+    item = EquipmentItem(name="laptop", issued_on=date(2026, 11, 2))
+
+    assert item.age_years(as_of=date(2026, 11, 23)) == 0
+
+
+def test_age_years_for_an_item_issued_on_29_february():
+    item = EquipmentItem(name="laptop", issued_on=date(2024, 2, 29))
+
+    assert item.age_years(as_of=date(2025, 2, 28)) == 0
+    assert item.age_years(as_of=date(2025, 3, 1)) == 1
+
+
+def test_equipment_item_to_dict_reports_age_instead_of_the_issue_date():
+    item = EquipmentItem(name="laptop", issued_on=date(2022, 3, 1))
+
+    assert item.to_dict(as_of=date(2026, 11, 23)) == {"name": "laptop", "age_years": 4}
 
 
 def test_employee_to_dict_is_the_shape_the_tool_returns():
@@ -96,7 +116,7 @@ def test_employee_to_dict_is_the_shape_the_tool_returns():
         "name": "Priya Raman",
         "role": "standard",
         "tenure_years": 7,
-        "equipment": [{"name": "laptop", "issued_on": "2022-03-01"}],
+        "equipment": [{"name": "laptop", "age_years": 4}],
     }
 
 

@@ -49,8 +49,8 @@ def test_a_known_id_returns_the_record(repository):
         "role": "standard",
         "tenure_years": 7,
         "equipment": [
-            {"name": "laptop", "issued_on": "2022-03-01"},
-            {"name": "monitor", "issued_on": "2022-03-01"},
+            {"name": "laptop", "age_years": 4},
+            {"name": "monitor", "age_years": 4},
         ],
     }
 
