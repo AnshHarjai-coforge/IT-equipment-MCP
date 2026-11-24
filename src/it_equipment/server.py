@@ -19,6 +19,7 @@ from typing import Any
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import ToolAnnotations
 
 from it_equipment.config import load_settings
 from it_equipment.repository import (
@@ -64,13 +65,21 @@ def build_server(repository: EmployeeRepository) -> MCPServer:
     # bare dict produces no output schema, and the result then reaches the
     # client only as JSON text. Naming the key and value types makes the SDK
     # publish a schema and hand the caller the dictionary itself.
-    @mcp.tool()
+    # The docstring below is not a note for us. It is the description the model
+    # reads when deciding whether to call this tool, so it is written for that
+    # reader: a one-line summary, what failure means, then each argument with an
+    # example of its format. These comments are invisible to the model, as is
+    # the body of the function; the name, the docstring and the type hints are
+    # the whole interface it gets.
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
     def get_employee_info(employee_id: str) -> dict[str, Any]:
-        """Look up an employee's role, tenure in whole years, and the
-        equipment currently on file for them.
+        """Get an employee's role, tenure in whole years, and current equipment.
 
-        Takes the employee id, such as "E001". Fails if no employee has that
-        id, which means the id should be checked rather than guessed at.
+        Fails if no employee has that id, so the id should be verified, not
+        guessed.
+
+        Args:
+            employee_id: The employee's id (e.g. E001)
         """
         # The only place in the program that reads the clock. Everything below
         # this line receives the date as an argument.
