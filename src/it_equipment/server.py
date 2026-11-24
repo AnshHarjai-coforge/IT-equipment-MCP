@@ -10,8 +10,8 @@ Two conversions happen here, and nowhere else:
     - date.today() is read, because a tool call happens on a particular day.
       Nothing beneath this module looks at the clock; the date is passed down as
       an argument so the same inputs always give the same answer.
-    - EmployeeNotFoundError becomes ToolError, the SDK's way of telling the
-      caller that a tool could not do its job.
+    - EmployeeNotFoundError and RoleNotFoundError become ToolError, the SDK's
+      way of telling the caller that a tool could not do its job.
 """
 
 from datetime import date
@@ -25,6 +25,8 @@ from it_equipment.config import load_settings
 from it_equipment.repository import (
     EmployeeNotFoundError,
     EmployeeRepository,
+    PolicyRepository,
+    RoleNotFoundError,
     load_employees_from_json,
 )
 
@@ -50,6 +52,29 @@ def employee_info(repository: EmployeeRepository, employee_id: str, as_of: date)
         raise ToolError(str(error)) from error
 
     return employee.to_dict(as_of=as_of)
+
+
+def policy_limits(policies: PolicyRepository, role: str) -> dict[str, Any]:
+    """Look up a role's policy and return it as a JSON-ready dictionary.
+
+    A plain function for the same reason as employee_info: a test calls it
+    directly, without the protocol in the way.
+
+    An unknown role is raised as ToolError, for the same reason as an unknown
+    employee id: the tool cannot answer the question, and ToolError is the only
+    exception whose message reaches the caller. That message lists the known
+    roles, so the agent can see it passed something other than what
+    get_employee_info reported.
+
+    No date is needed: a policy says how often items are replaced, not how old
+    anyone's items are.
+    """
+    try:
+        policy = policies.get_policy(role)
+    except RoleNotFoundError as error:
+        raise ToolError(str(error)) from error
+
+    return policy.to_dict()
 
 
 def build_server(repository: EmployeeRepository) -> MCPServer:

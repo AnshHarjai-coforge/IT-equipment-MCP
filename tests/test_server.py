@@ -1,8 +1,8 @@
-"""Unit tests for the logic behind the get_employee_info tool.
+"""Unit tests for the logic behind the MCP tools.
 
-These call employee_info directly, as plain Python. They deliberately do not go
-over HTTP and do not go through the MCP protocol, so a failure here points at
-the logic rather than at the plumbing.
+These call the plain functions directly, as plain Python. They deliberately do
+not go over HTTP and do not go through the MCP protocol, so a failure here
+points at the logic rather than at the plumbing.
 
 The date is passed in as a fixed constant rather than read from the clock,
 which is what lets every expected tenure below be a constant.
@@ -14,9 +14,9 @@ from datetime import date
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from it_equipment.models import Employee, EquipmentItem
-from it_equipment.repository import EmployeeRepository
-from it_equipment.server import employee_info
+from it_equipment.models import Employee, EquipmentItem, ItemAllowance, RolePolicy
+from it_equipment.repository import EmployeeRepository, PolicyRepository
+from it_equipment.server import employee_info, policy_limits
 
 # A fixed date, so every expected tenure below is a constant.
 TODAY = date(2026, 11, 23)
@@ -79,6 +79,60 @@ def test_the_result_is_json_serialisable(repository):
     result = employee_info(repository, "E100", as_of=TODAY)
 
     # json.dumps raises TypeError if any value cannot be converted.
+    as_json = json.dumps(result)
+
+    assert json.loads(as_json) == result
+
+
+@pytest.fixture
+def policies() -> PolicyRepository:
+    """A two-role policy repository built in memory, with no file involved."""
+    standard = RolePolicy(
+        role="standard",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=4),
+            ItemAllowance(item="monitor", max_quantity=1, refresh_years=3),
+        ],
+    )
+    manager = RolePolicy(
+        role="manager",
+        items=[ItemAllowance(item="laptop", max_quantity=1, refresh_years=2)],
+    )
+
+    return PolicyRepository({"standard": standard, "manager": manager})
+
+
+def test_a_known_role_returns_its_policy(policies):
+    result = policy_limits(policies, "standard")
+
+    assert result == {
+        "role": "standard",
+        "items": [
+            {"item": "laptop", "max_quantity": 1, "refresh_years": 4},
+            {"item": "monitor", "max_quantity": 1, "refresh_years": 3},
+        ],
+    }
+
+
+def test_an_unknown_role_raises_a_tool_error(policies):
+    """ToolError, not RoleNotFoundError, so the message reaches the agent."""
+    with pytest.raises(ToolError):
+        policy_limits(policies, "contractor")
+
+
+def test_the_tool_error_names_the_role_and_lists_the_known_roles(policies):
+    with pytest.raises(ToolError) as raised:
+        policy_limits(policies, "contractor")
+
+    message = str(raised.value)
+    assert "contractor" in message
+    assert "standard" in message
+    assert "manager" in message
+
+
+def test_the_policy_result_is_json_serialisable(policies):
+    result = policy_limits(policies, "manager")
+
     as_json = json.dumps(result)
 
     assert json.loads(as_json) == result
