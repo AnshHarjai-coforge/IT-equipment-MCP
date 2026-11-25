@@ -90,6 +90,13 @@ class EligibilityDecision:
         }
 
 
+# The five rules in plain words, checked in this order; the first that fits decides.
+#   Rule 1: nobody gets this item, so a person decides.
+#   Rule 2: your role doesn't get this item, so the answer is no.
+#   Rule 3: the records already show too many, so a person decides.
+#   Rule 4: one more as well as what you have: yes below the limit, no at it, never with a date.
+#   Rule 5: swap your oldest for a new one: no if you hold none, yes once it is old enough,
+#           otherwise no, with the date it becomes due.
 def decide_eligibility(
     employee: Employee,
     policy: RolePolicy,
