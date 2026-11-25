@@ -12,7 +12,7 @@ the date, so a test can build every input from a literal.
 from dataclasses import dataclass
 from datetime import date
 
-from it_equipment.models import Employee, EquipmentItem, RolePolicy, add_whole_years
+from it_equipment.models import Employee, EquipmentItem, RolePolicy, date_after_whole_years
 
 # The three answers a verdict can give. Named once here so a typo in one rule
 # cannot quietly invent a fourth.
@@ -239,7 +239,7 @@ def decide_replacement(
         return Verdict(verdict=APPROVED, reason=reason, next_eligible_on=None)
 
     # Worked out here, so the model relays a date rather than calculating one.
-    due = add_whole_years(oldest.issued_on, refresh_years)
+    due = date_after_whole_years(oldest.issued_on, refresh_years)
     return Verdict(verdict=DENIED, reason=reason, next_eligible_on=due)
 
 

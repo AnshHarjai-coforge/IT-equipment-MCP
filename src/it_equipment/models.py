@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 
 
-def whole_years_between(start: date, end: date) -> int:
+def count_whole_years(start: date, end: date) -> int:
     """Return how many full years have passed from one date to a later one.
 
     Both tenure and equipment age are counted this way. Keeping the anniversary
@@ -40,19 +40,19 @@ def whole_years_between(start: date, end: date) -> int:
     return years
 
 
-def add_whole_years(start: date, years: int) -> date:
+def date_after_whole_years(start: date, years: int) -> date:
     """Return the date a given number of whole years after a start date.
 
-    This is the reverse of whole_years_between, and is used to work out the
+    This is the reverse of count_whole_years, and is used to work out the
     date an item becomes due for replacement. The two must agree: on the date
-    this returns, whole_years_between(start, ...) has just reached the number
+    this returns, count_whole_years(start, ...) has just reached the number
     of years added, and not a day earlier.
     """
     target_year = start.year + years
 
     if start.month == 2 and start.day == 29:
         if not calendar.isleap(target_year):
-            # There is no 29 February in that year. whole_years_between counts
+            # There is no 29 February in that year. count_whole_years counts
             # such a year as completed on 1 March, so the due date is 1 March
             # too. Picking 28 February instead would name a day on which the
             # item is still a year short.
@@ -74,7 +74,7 @@ class EquipmentItem:
         The date is passed in for the same reason as in tenure_years: the
         answer depends only on the inputs, so a test can assert a fixed number.
         """
-        return whole_years_between(self.issued_on, as_of)
+        return count_whole_years(self.issued_on, as_of)
 
     def to_dict(self, as_of: date) -> dict:
         """Convert to plain types that can be written as JSON.
@@ -107,7 +107,7 @@ class Employee:
         answer, so a test can assert a fixed number instead of one that
         changes as the calendar moves on.
         """
-        return whole_years_between(self.hire_date, as_of)
+        return count_whole_years(self.hire_date, as_of)
 
     def to_dict(self, as_of: date) -> dict:
         """Convert to plain types, ready to be returned by an MCP tool.
