@@ -221,3 +221,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Review flags written by the MCP server as it runs (the review_queue_file
+# setting). They are local state, not source: the connection check alone adds
+# one on every run, so committing them would mean a change after every check.
+review-queue/
