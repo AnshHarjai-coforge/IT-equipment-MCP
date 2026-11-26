@@ -7,9 +7,11 @@ the error the protocol understands.
 
 Two conversions happen here, and nowhere else:
 
-    - date.today() is read, because a tool call happens on a particular day.
-      Nothing beneath this module looks at the clock; the date is passed down as
-      an argument so the same inputs always give the same answer.
+    - The clock is read (date.today(), datetime.now()) and review flags are
+      given random ids (uuid4()), only inside the tool functions, because a
+      tool call happens at a particular moment. Nothing beneath them looks at
+      the clock or makes an id; each is passed down as an argument, so the same
+      inputs always give the same answer.
     - EmployeeNotFoundError and RoleNotFoundError become ToolError, the SDK's
       way of telling the caller that a tool could not do its job.
 """
@@ -211,8 +213,8 @@ def build_server(
         Args:
             employee_id: The employee's id (e.g. E001)
         """
-        # The only place in the program that reads the clock. Everything below
-        # this line receives the date as an argument.
+        # The tool functions are the only places that read the clock or make a
+        # random id. Everything below this line receives the date as an argument.
         return employee_info(employees, employee_id, as_of=date.today())
 
     # The same conventions as above: read-only, dict[str, Any] so a schema is
