@@ -9,17 +9,27 @@ which is what lets every expected tenure below be a constant.
 """
 
 import json
-from datetime import date
+from datetime import date, datetime, timezone
+from pathlib import Path
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from it_equipment.models import Employee, EquipmentItem, ItemAllowance, RolePolicy
 from it_equipment.repository import EmployeeRepository, PolicyRepository
-from it_equipment.server import employee_info, policy_limits, request_eligibility
+from it_equipment.review_queue import ReviewQueue
+from it_equipment.server import employee_info, human_review, policy_limits, request_eligibility
 
 # A fixed date, so every expected tenure below is a constant.
 TODAY = date(2026, 11, 23)
+
+# A fixed id and moment for review flags, in place of uuid4() and datetime.now().
+FLAG_ID = "9b1d6c2e-4f7a-4c1e-8a3b-2d5e6f708192"
+FLAGGED_AT = datetime(2026, 11, 23, 14, 3, 12, tzinfo=timezone.utc)
+
+# An escalation the requirements name: a claim the records cannot confirm.
+REQUEST = "I need a second monitor for a medical reason."
+REASON = "The request claims a medical need, which the records cannot confirm."
 
 
 @pytest.fixture
@@ -218,6 +228,149 @@ def test_the_item_is_trimmed_and_lower_cased(employees_with_a_stray_role, polici
 
 def test_the_eligibility_result_is_json_serialisable(employees_with_a_stray_role, policies):
     result = request_eligibility(employees_with_a_stray_role, policies, "E100", "laptop", TODAY)
+
+    as_json = json.dumps(result)
+
+    assert json.loads(as_json) == result
+
+
+def read_lines(path: Path) -> list[str]:
+    """Return the lines of a queue file, read directly rather than through the queue."""
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def test_a_flag_for_a_known_employee_is_returned_as_queued(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    result = human_review(repository, queue, "E100", REQUEST, REASON, FLAG_ID, FLAGGED_AT)
+
+    assert result == {
+        "flag_id": FLAG_ID,
+        "employee_id": "E100",
+        "request": REQUEST,
+        "reason": REASON,
+        "flagged_at": "2026-11-23T14:03:12+00:00",
+        "status": "queued",
+    }
+
+
+def test_the_flag_is_written_to_the_queue_without_its_status(repository, tmp_path):
+    """Being in the file is what queued means, so the file does not repeat it."""
+    queue_file = tmp_path / "review_queue.jsonl"
+    queue = ReviewQueue(queue_file)
+
+    human_review(repository, queue, "E100", REQUEST, REASON, FLAG_ID, FLAGGED_AT)
+
+    lines = read_lines(queue_file)
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == {
+        "flag_id": FLAG_ID,
+        "employee_id": "E100",
+        "request": REQUEST,
+        "reason": REASON,
+        "flagged_at": "2026-11-23T14:03:12+00:00",
+    }
+
+
+def test_two_calls_make_two_flags(repository, tmp_path):
+    """The tool is not idempotent: the same request flagged twice is two flags."""
+    queue_file = tmp_path / "review_queue.jsonl"
+    queue = ReviewQueue(queue_file)
+    second_id = "0c5a7e31-2b6d-4f8e-9a1c-3d4b5e6f7a80"
+
+    human_review(repository, queue, "E100", REQUEST, REASON, FLAG_ID, FLAGGED_AT)
+    human_review(repository, queue, "E100", REQUEST, REASON, second_id, FLAGGED_AT)
+
+    lines = read_lines(queue_file)
+    assert len(lines) == 2
+    assert json.loads(lines[0])["flag_id"] == FLAG_ID
+    assert json.loads(lines[1])["flag_id"] == second_id
+
+
+def test_a_flag_for_an_unknown_employee_raises_a_tool_error(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    with pytest.raises(ToolError) as raised:
+        human_review(repository, queue, "E999", REQUEST, REASON, FLAG_ID, FLAGGED_AT)
+
+    assert "E999" in str(raised.value)
+
+
+def test_a_blank_request_raises_a_tool_error(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    with pytest.raises(ToolError) as raised:
+        human_review(repository, queue, "E100", "", REASON, FLAG_ID, FLAGGED_AT)
+
+    assert "request is blank" in str(raised.value)
+
+
+def test_a_request_of_only_spaces_counts_as_blank(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    with pytest.raises(ToolError) as raised:
+        human_review(repository, queue, "E100", "   ", REASON, FLAG_ID, FLAGGED_AT)
+
+    assert "request is blank" in str(raised.value)
+
+
+def test_a_blank_reason_raises_a_tool_error(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    with pytest.raises(ToolError) as raised:
+        human_review(repository, queue, "E100", REQUEST, "", FLAG_ID, FLAGGED_AT)
+
+    assert "reason is blank" in str(raised.value)
+
+
+def test_a_reason_of_only_spaces_counts_as_blank(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    with pytest.raises(ToolError) as raised:
+        human_review(repository, queue, "E100", REQUEST, "   ", FLAG_ID, FLAGGED_AT)
+
+    assert "reason is blank" in str(raised.value)
+
+
+def test_the_employee_is_checked_before_the_text(repository, tmp_path):
+    """With an unknown id and a blank reason, the agent hears about the id first."""
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    with pytest.raises(ToolError) as raised:
+        human_review(repository, queue, "E999", REQUEST, "", FLAG_ID, FLAGGED_AT)
+
+    assert "E999" in str(raised.value)
+
+
+def test_a_refused_flag_writes_nothing(repository, tmp_path):
+    """A reviewer must never find a flag the agent was told had failed."""
+    queue_file = tmp_path / "review_queue.jsonl"
+    queue = ReviewQueue(queue_file)
+
+    with pytest.raises(ToolError):
+        human_review(repository, queue, "E999", REQUEST, REASON, FLAG_ID, FLAGGED_AT)
+    with pytest.raises(ToolError):
+        human_review(repository, queue, "E100", "", REASON, FLAG_ID, FLAGGED_AT)
+    with pytest.raises(ToolError):
+        human_review(repository, queue, "E100", REQUEST, "", FLAG_ID, FLAGGED_AT)
+
+    assert not queue_file.exists()
+
+
+def test_the_text_is_stored_exactly_as_passed(repository, tmp_path):
+    """Blank is checked on trimmed text, but the employee's words are not altered."""
+    queue_file = tmp_path / "review_queue.jsonl"
+    queue = ReviewQueue(queue_file)
+
+    human_review(repository, queue, "E100", "  " + REQUEST, REASON, FLAG_ID, FLAGGED_AT)
+
+    assert json.loads(read_lines(queue_file)[0])["request"] == "  " + REQUEST
+
+
+def test_the_flag_result_is_json_serialisable(repository, tmp_path):
+    queue = ReviewQueue(tmp_path / "review_queue.jsonl")
+
+    result = human_review(repository, queue, "E100", REQUEST, REASON, FLAG_ID, FLAGGED_AT)
 
     as_json = json.dumps(result)
 

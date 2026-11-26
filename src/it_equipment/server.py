@@ -14,7 +14,7 @@ Two conversions happen here, and nowhere else:
       way of telling the caller that a tool could not do its job.
 """
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from mcp.server import MCPServer
@@ -31,6 +31,7 @@ from it_equipment.repository import (
     load_employees_from_json,
     load_policies_from_json,
 )
+from it_equipment.review_queue import ReviewFlag, ReviewQueue
 
 
 def employee_info(repository: EmployeeRepository, employee_id: str, as_of: date) -> dict[str, Any]:
@@ -114,6 +115,63 @@ def request_eligibility(
 
     decision = decide_eligibility(employee, policy, policies.catalogue(), tidy_item, as_of)
     return decision.to_dict()
+
+
+def human_review(
+    employees: EmployeeRepository,
+    queue: ReviewQueue,
+    employee_id: str,
+    request: str,
+    reason: str,
+    flag_id: str,
+    flagged_at: datetime,
+) -> dict[str, Any]:
+    """Record a request for a person to decide, and return the flag as a dictionary.
+
+    A plain function for the same reason as employee_info: a test calls it
+    directly, without the protocol in the way. The id and the time are passed
+    in rather than made here, so a test can assert fixed values.
+
+    Each check raises ToolError, because each is a flag the tool cannot record:
+    there is no such employee, or a reviewer would be handed nothing to act
+    on. Every check comes before the write, so a refused flag records nothing.
+    """
+    # The record itself is not needed, only the lookup: it is how an unknown id
+    # is caught before anything is written. A flag for an employee who does not
+    # exist would leave a reviewer nobody to answer.
+    try:
+        employees.get_employee(employee_id)
+    except EmployeeNotFoundError as error:
+        raise ToolError(str(error)) from error
+
+    # Whitespace alone counts as blank, since "   " gives a reviewer no more to
+    # go on than "". The text is still stored exactly as it was passed.
+    if request.strip() == "":
+        raise ToolError(
+            "The request is blank. Pass the employee's request in their own words, "
+            "so a reviewer knows what was asked."
+        )
+
+    if reason.strip() == "":
+        raise ToolError(
+            "The reason is blank. Say why this needs a person, so a reviewer knows what to check."
+        )
+
+    flag = ReviewFlag(
+        flag_id=flag_id,
+        employee_id=employee_id,
+        request=request,
+        reason=reason,
+        flagged_at=flagged_at,
+    )
+    queue.add(flag)
+
+    # "queued" goes in the reply only, not the file. Being in the file is what
+    # queued means, and once a person has dealt with the flag a stored "queued"
+    # would be wrong for good, in a file that is only ever appended to.
+    result = flag.to_dict()
+    result["status"] = "queued"
+    return result
 
 
 def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> MCPServer:
