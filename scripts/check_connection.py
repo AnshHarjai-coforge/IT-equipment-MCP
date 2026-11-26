@@ -5,6 +5,10 @@ start the server, run this, and confirm a real response comes back over the
 wire. It now calls each tool as it is added, so CI proves every one of them is
 registered and callable. The one-tool output is kept in data/report/.
 
+Calling flag_for_human_review writes one real flag to the review queue on every
+run (review-queue/review_queue.jsonl by default, which git ignores). Its text
+says it came from this script, so a reviewer can tell it is not a real request.
+
 Run it in a second terminal, with the server already running:
 
     python -m it_equipment.server      # terminal 1
@@ -33,6 +37,10 @@ UNKNOWN_ROLE = "contractor"
 
 # An item in the catalogue, for the eligibility check.
 KNOWN_ITEM = "laptop"
+
+# The text of the flag this check writes, saying plainly where it came from.
+CHECK_REQUEST = "Connection check from scripts/check_connection.py: not a real request."
+CHECK_REASON = "Confirms flag_for_human_review is callable; no action needed."
 
 
 def print_result(result: CallToolResult) -> None:
@@ -115,6 +123,25 @@ async def check(url: str) -> None:
             {"employee_id": UNKNOWN_EMPLOYEE_ID, "item": KNOWN_ITEM},
         )
         print_result(not_checked)
+        print()
+
+        # The fourth tool, the only one that changes something. The known
+        # employee's call writes one real flag and returns it as queued. The
+        # unknown id is refused before anything is written, so it adds nothing.
+        print(f"Calling flag_for_human_review({KNOWN_EMPLOYEE_ID!r}, ...) - a known employee:")
+        flagged = await client.call_tool(
+            "flag_for_human_review",
+            {"employee_id": KNOWN_EMPLOYEE_ID, "request": CHECK_REQUEST, "reason": CHECK_REASON},
+        )
+        print_result(flagged)
+        print()
+
+        print(f"Calling flag_for_human_review({UNKNOWN_EMPLOYEE_ID!r}, ...) - no such employee:")
+        not_flagged = await client.call_tool(
+            "flag_for_human_review",
+            {"employee_id": UNKNOWN_EMPLOYEE_ID, "request": CHECK_REQUEST, "reason": CHECK_REASON},
+        )
+        print_result(not_flagged)
 
 
 def report_unreachable(url: str, reason: BaseException) -> None:
