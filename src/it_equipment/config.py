@@ -1,8 +1,8 @@
 """Application settings: the values that change how the program runs.
 
-Settings are knobs, such as which port to listen on and which file to read.
-They are not the information the program reasons about: the employee records
-and the policy rules are data and live under data/ as JSON.
+Settings are knobs, such as which port to listen on and which files to read
+and write. They are not the information the program reasons about: the
+employee records and the policy rules are data and live under data/ as JSON.
 
 Settings are built up in three layers, each one overriding the layer before:
 
@@ -41,6 +41,9 @@ class Settings:
     path: str = "/mcp"
     employees_file: Path = REPO_ROOT / "data" / "employees.json"
     policies_file: Path = REPO_ROOT / "data" / "policies.json"
+    # Where review flags are appended. Its folder is git-ignored, because the
+    # flags are written while the server runs rather than authored as data.
+    review_queue_file: Path = REPO_ROOT / "review-queue" / "review_queue.jsonl"
 
     def mcp_url(self) -> str:
         """Return the address a client connects to.
@@ -88,6 +91,7 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
     path = defaults.path
     employees_file = defaults.employees_file
     policies_file = defaults.policies_file
+    review_queue_file = defaults.review_queue_file
 
     # Layer 2: the configuration file. A missing file is not an error, because
     # the defaults above are already a complete set of settings.
@@ -118,6 +122,9 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
             if "policies" in data:
                 policies_file = resolve_path(data["policies"], config_file.parent)
 
+            if "review_queue" in data:
+                review_queue_file = resolve_path(data["review_queue"], config_file.parent)
+
     # Layer 3: environment variables, which is how a container overrides a
     # setting without the image being rebuilt.
     if "MCP_HOST" in os.environ:
@@ -138,10 +145,14 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
     if "MCP_POLICIES_FILE" in os.environ:
         policies_file = resolve_path(os.environ["MCP_POLICIES_FILE"], config_file.parent)
 
+    if "MCP_REVIEW_QUEUE_FILE" in os.environ:
+        review_queue_file = resolve_path(os.environ["MCP_REVIEW_QUEUE_FILE"], config_file.parent)
+
     return Settings(
         host=host,
         port=port,
         path=path,
         employees_file=employees_file,
         policies_file=policies_file,
+        review_queue_file=review_queue_file,
     )

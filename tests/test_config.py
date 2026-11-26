@@ -16,6 +16,7 @@ import pytest
 
 from it_equipment.config import (
     DEFAULT_CONFIG_FILE,
+    REPO_ROOT,
     Settings,
     load_settings,
     resolve_path,
@@ -28,6 +29,7 @@ ENVIRONMENT_VARIABLES = [
     "MCP_PATH",
     "MCP_EMPLOYEES_FILE",
     "MCP_POLICIES_FILE",
+    "MCP_REVIEW_QUEUE_FILE",
 ]
 
 
@@ -171,6 +173,42 @@ def test_the_environment_beats_the_config_file_for_the_policies_file(tmp_path, m
     assert settings.policies_file == Path("/srv/policies.json")
 
 
+def test_the_review_queue_file_has_a_default(tmp_path):
+    settings = load_settings(tmp_path / "absent.toml")
+
+    assert settings.review_queue_file == REPO_ROOT / "review-queue" / "review_queue.jsonl"
+
+
+def test_the_review_queue_file_comes_from_the_config_file(tmp_path):
+    config_file = write_config(
+        tmp_path,
+        """
+        [data]
+        review_queue = "flags/queue.jsonl"
+        """,
+    )
+
+    settings = load_settings(config_file)
+
+    assert settings.review_queue_file == tmp_path / "flags" / "queue.jsonl"
+
+
+def test_the_environment_beats_the_config_file_for_the_review_queue_file(tmp_path, monkeypatch):
+    """How a container points the queue at a mounted volume."""
+    config_file = write_config(
+        tmp_path,
+        """
+        [data]
+        review_queue = "review-queue/review_queue.jsonl"
+        """,
+    )
+    monkeypatch.setenv("MCP_REVIEW_QUEUE_FILE", "/srv/review-queue/review_queue.jsonl")
+
+    settings = load_settings(config_file)
+
+    assert settings.review_queue_file == Path("/srv/review-queue/review_queue.jsonl")
+
+
 def test_an_absolute_data_path_is_left_alone():
     resolved = resolve_path("/etc/employees.json", Path("/somewhere/else"))
 
@@ -187,3 +225,6 @@ def test_the_committed_config_file_loads():
     # The paths in the committed file must point at the real data.
     assert settings.employees_file.exists()
     assert settings.policies_file.exists()
+    # The queue file is written by the server, so it need not exist yet. It
+    # must sit in the folder .gitignore leaves out, so flags are never committed.
+    assert settings.review_queue_file == REPO_ROOT / "review-queue" / "review_queue.jsonl"
