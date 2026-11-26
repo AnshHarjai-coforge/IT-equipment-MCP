@@ -74,12 +74,13 @@ The rules are checked **in this order**, and the first one that applies decides:
    `needs_review`. The reason names the items that are covered, so a wrong word can be
    corrected.
 2. **The role isn't issued that item** (a standard employee asking for a docking station): both
-   answers are `denied`.
+   answers are `denied`. After rule 1 or 2 there is no limit or replacement period to report,
+   so the result gives both as null.
 3. **The records show more than the role may hold** (a standard employee on file with two
    monitors): both answers are `needs_review`, because the records disagree with the policy.
 4. **Additional:** `approved` if they hold fewer than the limit, otherwise `denied`. A denial
-   says in words that there is no date, for example "A second laptop is not issued while one is
-   held", so no date is ever invented.
+   says in words that there is no date, for example "Another laptop is not issued while
+   1 laptop is held, so there is no date on which this changes", so no date is ever invented.
 5. **Replacement:**
    - `denied` if they hold none of that item, since there is nothing to replace;
    - `approved` if their oldest one has reached the refresh age;
@@ -93,7 +94,7 @@ Examples, for a standard employee holding one laptop:
 | --- | --- | --- |
 | 4 years | replacement | `approved`: standard laptops are replaced after 4 years |
 | 3 years | replacement | `denied`, with the date it reaches 4 years |
-| any | additional | `denied`: a second laptop is not issued while one is held |
+| any | additional | `denied`: another laptop is not issued while one is held, and no date applies |
 
 ## 4. What counts as ambiguous
 

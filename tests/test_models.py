@@ -1,13 +1,16 @@
 """Unit tests for the data types: employees, their equipment, and the policies."""
 
-from datetime import date
+from datetime import date, timedelta
+
+import pytest
 
 from it_equipment.models import (
     Employee,
     EquipmentItem,
     ItemAllowance,
     RolePolicy,
-    whole_years_between,
+    count_whole_years,
+    date_after_whole_years,
 )
 
 
@@ -22,24 +25,54 @@ def make_employee(hire_date: date) -> Employee:
     )
 
 
-def test_whole_years_between_counts_only_completed_years():
-    assert whole_years_between(date(2022, 3, 1), date(2026, 2, 28)) == 3
-    assert whole_years_between(date(2022, 3, 1), date(2026, 3, 1)) == 4
+def test_count_whole_years_counts_only_completed_years():
+    assert count_whole_years(date(2022, 3, 1), date(2026, 2, 28)) == 3
+    assert count_whole_years(date(2022, 3, 1), date(2026, 3, 1)) == 4
 
 
-def test_whole_years_between_is_zero_within_the_first_year():
-    assert whole_years_between(date(2026, 11, 2), date(2026, 11, 23)) == 0
+def test_count_whole_years_is_zero_within_the_first_year():
+    assert count_whole_years(date(2026, 11, 2), date(2026, 11, 23)) == 0
 
 
 def test_a_29_february_start_completes_its_year_on_1_march_in_a_common_year():
     # 2025 has no 29 February, so the first year ends a day later than 28 February.
-    assert whole_years_between(date(2024, 2, 29), date(2025, 2, 28)) == 0
-    assert whole_years_between(date(2024, 2, 29), date(2025, 3, 1)) == 1
+    assert count_whole_years(date(2024, 2, 29), date(2025, 2, 28)) == 0
+    assert count_whole_years(date(2024, 2, 29), date(2025, 3, 1)) == 1
 
 
 def test_a_29_february_start_completes_its_year_on_29_february_in_a_leap_year():
-    assert whole_years_between(date(2024, 2, 29), date(2028, 2, 28)) == 3
-    assert whole_years_between(date(2024, 2, 29), date(2028, 2, 29)) == 4
+    assert count_whole_years(date(2024, 2, 29), date(2028, 2, 28)) == 3
+    assert count_whole_years(date(2024, 2, 29), date(2028, 2, 29)) == 4
+
+
+def test_date_after_whole_years_keeps_the_month_and_day():
+    assert date_after_whole_years(date(2025, 8, 20), 3) == date(2028, 8, 20)
+
+
+def test_date_after_whole_years_from_29_february_lands_on_1_march_in_a_common_year():
+    assert date_after_whole_years(date(2024, 2, 29), 1) == date(2025, 3, 1)
+
+
+def test_date_after_whole_years_from_29_february_stays_on_29_february_in_a_leap_year():
+    assert date_after_whole_years(date(2024, 2, 29), 4) == date(2028, 2, 29)
+
+
+def test_date_after_whole_years_agrees_with_count_whole_years():
+    """The due date is the first day on which the item is old enough.
+
+    For each start date, the years are complete on the date date_after_whole_years
+    returns and still one short the day before. The 29 February start covers
+    both a common year (2025) and a leap year (2028).
+    """
+    starts = [date(2022, 3, 1), date(2025, 8, 20), date(2024, 2, 29), date(2023, 12, 31)]
+
+    for start in starts:
+        for years in [1, 2, 3, 4]:
+            due = date_after_whole_years(start, years)
+            day_before = due - timedelta(days=1)
+
+            assert count_whole_years(start, due) == years
+            assert count_whole_years(start, day_before) == years - 1
 
 
 def test_tenure_years_counts_whole_years_after_the_anniversary():
@@ -157,3 +190,32 @@ def test_role_policy_to_dict_is_the_shape_the_tool_returns():
             {"item": "monitor", "max_quantity": 1, "refresh_years": 3},
         ],
     }
+
+
+def make_standard_policy() -> RolePolicy:
+    return RolePolicy(
+        role="standard",
+        items=[
+            ItemAllowance(item="laptop", max_quantity=1, refresh_years=4),
+            ItemAllowance(item="monitor", max_quantity=1, refresh_years=3),
+        ],
+    )
+
+
+def test_issues_is_true_for_an_item_the_role_holds():
+    assert make_standard_policy().issues("monitor") is True
+
+
+def test_issues_is_false_for_an_item_the_role_is_not_issued():
+    assert make_standard_policy().issues("docking station") is False
+
+
+def test_allowance_for_returns_the_items_allowance():
+    allowance = make_standard_policy().allowance_for("monitor")
+
+    assert allowance == ItemAllowance(item="monitor", max_quantity=1, refresh_years=3)
+
+
+def test_allowance_for_an_item_not_issued_raises():
+    with pytest.raises(KeyError):
+        make_standard_policy().allowance_for("docking station")

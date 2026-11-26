@@ -12,12 +12,14 @@ The policy rules, and what makes a request ambiguous, are defined in
 
 ## Status
 
-Two of the four tools are served over MCP and confirmed working end to end:
+Three of the four tools are served over MCP and confirmed working end to end:
 
 - `get_employee_info`: an employee's role, tenure, and equipment with each item's age
 - `get_policy_limits`: what a role may hold, and after how many years each item is replaced
+- `check_request_eligibility`: whether a request for an item is within policy, answered both
+  as an additional item and as a replacement, each with a verdict and a reason
 
-`check_request_eligibility`, `flag_for_human_review` and the agent are still to come.
+`flag_for_human_review` and the agent are still to come.
 
 ## Requirements
 
@@ -108,6 +110,7 @@ location is a setting.
 ```
 src/it_equipment/models.py        data types: employees, equipment, role policies
 src/it_equipment/repository.py    employee and policy lookups, and the item catalogue
+src/it_equipment/eligibility.py   the eligibility rules: every policy decision is made here
 src/it_equipment/config.py        Settings, and the loader that layers them
 src/it_equipment/server.py        the MCP server and its tools
 scripts/check_connection.py       connects as a client and calls each tool

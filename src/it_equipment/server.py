@@ -1,9 +1,9 @@
 """The MCP server: the only module in the package that imports mcp.
 
-The business logic stays in models.py and repository.py, which know nothing
-about MCP. This module is the edge: it converts what those modules produce into
-what the protocol needs, and converts their errors into the error the protocol
-understands.
+The business logic stays in models.py, repository.py and eligibility.py,
+which know nothing about MCP. This module is the edge: it converts what those
+modules produce into what the protocol needs, and converts their errors into
+the error the protocol understands.
 
 Two conversions happen here, and nowhere else:
 
@@ -22,6 +22,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from it_equipment.config import load_settings
+from it_equipment.eligibility import decide_eligibility
 from it_equipment.repository import (
     EmployeeNotFoundError,
     EmployeeRepository,
@@ -76,6 +77,43 @@ def policy_limits(policies: PolicyRepository, role: str) -> dict[str, Any]:
         raise ToolError(str(error)) from error
 
     return policy.to_dict()
+
+
+def request_eligibility(
+    employees: EmployeeRepository,
+    policies: PolicyRepository,
+    employee_id: str,
+    item: str,
+    as_of: date,
+) -> dict[str, Any]:
+    """Decide whether an employee may have an item, and return the decision as a dictionary.
+
+    A plain function for the same reason as employee_info: a test calls it
+    directly, without the protocol in the way.
+
+    Only a question the tool cannot answer raises ToolError: an unknown
+    employee id, or an employee whose role has no policy. Being outside policy
+    is an answer, not a failure, so a "denied" or "needs_review" verdict
+    returns normally like any other.
+    """
+    try:
+        employee = employees.get_employee(employee_id)
+    except EmployeeNotFoundError as error:
+        raise ToolError(str(error)) from error
+
+    # The role comes from the employee's record, never from the caller, so a
+    # request cannot be checked against some other role's limits.
+    try:
+        policy = policies.get_policy(employee.role)
+    except RoleNotFoundError as error:
+        raise ToolError(str(error)) from error
+
+    # "Monitor " and "monitor" are the same request. Nothing further is
+    # guessed: a word the catalogue lacks goes to a person under rule 1.
+    tidy_item = item.strip().lower()
+
+    decision = decide_eligibility(employee, policy, policies.catalogue(), tidy_item, as_of)
+    return decision.to_dict()
 
 
 def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> MCPServer:
@@ -133,6 +171,35 @@ def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> M
             role: The role exactly as get_employee_info reports it (e.g. standard)
         """
         return policy_limits(policies, role)
+
+    # Read-only like the other two: it decides, but records nothing. The
+    # docstring tells the model that the verdict is the decision, so it relays
+    # one rather than reasoning its way to its own.
+    @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
+    def check_request_eligibility(employee_id: str, item: str) -> dict[str, Any]:
+        """Decide whether an employee's request for an item is within policy.
+
+        Always gives two verdicts. "additional" answers a request for one
+        more, kept alongside what the employee already holds. "replacement"
+        answers a request for a new one in place of their oldest, which goes
+        back. Use the verdict that matches what the employee asked for.
+
+        Each verdict is "approved", "denied" or "needs_review", with a reason
+        to relay. The verdict is the decision: do not recalculate it from the
+        other fields. "needs_review" means a person must decide. When a
+        replacement is denied only because the item is too new,
+        next_eligible_on gives the date it becomes due; otherwise it is null,
+        and no date should be offered.
+
+        Fails if no employee has that id, or if the employee's role has no
+        policy. A denial is not a failure.
+
+        Args:
+            employee_id: The employee's id (e.g. E001)
+            item: The item in the policy's own words (e.g. laptop, monitor,
+                docking station), not a brand or a description
+        """
+        return request_eligibility(employees, policies, employee_id, item, as_of=date.today())
 
     return mcp
 

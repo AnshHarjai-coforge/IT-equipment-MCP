@@ -31,6 +31,9 @@ UNKNOWN_EMPLOYEE_ID = "E999"
 KNOWN_ROLE = "standard"
 UNKNOWN_ROLE = "contractor"
 
+# An item in the catalogue, for the eligibility check.
+KNOWN_ITEM = "laptop"
+
 
 def print_result(result: CallToolResult) -> None:
     """Print one tool result: the error flag, the data, and the text."""
@@ -88,6 +91,30 @@ async def check(url: str) -> None:
         print(f"Calling get_policy_limits({UNKNOWN_ROLE!r}) - no such role:")
         no_policy = await client.call_tool("get_policy_limits", {"role": UNKNOWN_ROLE})
         print_result(no_policy)
+        print()
+
+        # The third tool. A known employee gets both verdicts back as a normal
+        # result, whatever they say; only the unknown id sets the error flag.
+        print(
+            f"Calling check_request_eligibility({KNOWN_EMPLOYEE_ID!r}, {KNOWN_ITEM!r})"
+            " - a known employee:"
+        )
+        eligible = await client.call_tool(
+            "check_request_eligibility",
+            {"employee_id": KNOWN_EMPLOYEE_ID, "item": KNOWN_ITEM},
+        )
+        print_result(eligible)
+        print()
+
+        print(
+            f"Calling check_request_eligibility({UNKNOWN_EMPLOYEE_ID!r}, {KNOWN_ITEM!r})"
+            " - no such employee:"
+        )
+        not_checked = await client.call_tool(
+            "check_request_eligibility",
+            {"employee_id": UNKNOWN_EMPLOYEE_ID, "item": KNOWN_ITEM},
+        )
+        print_result(not_checked)
 
 
 def report_unreachable(url: str, reason: BaseException) -> None:
