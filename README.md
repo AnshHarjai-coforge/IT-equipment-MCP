@@ -12,14 +12,16 @@ The policy rules, and what makes a request ambiguous, are defined in
 
 ## Status
 
-Three of the four tools are served over MCP and confirmed working end to end:
+All four tools are served over MCP and confirmed working end to end:
 
 - `get_employee_info`: an employee's role, tenure, and equipment with each item's age
 - `get_policy_limits`: what a role may hold, and after how many years each item is replaced
 - `check_request_eligibility`: whether a request for an item is within policy, answered both
   as an additional item and as a replacement, each with a verdict and a reason
+- `flag_for_human_review`: sends a request to a person, by appending a flag with the reason to
+  the review queue
 
-`flag_for_human_review` and the agent are still to come.
+The agent is still to come.
 
 ## Requirements
 
@@ -76,6 +78,10 @@ registered and calls each one twice, with an input that exists and one that does
 python scripts/check_connection.py
 ```
 
+Each run writes one real flag to the review queue, `review-queue/review_queue.jsonl`, whose
+text says it came from the connection check. The folder is created on the first flag and is
+git-ignored, because flags are written while the server runs rather than authored as data.
+
 ## Configuration
 
 Settings live in [`config.toml`](config.toml). Every one of them has a default in
@@ -91,6 +97,7 @@ changes one without the image being rebuilt:
 | `MCP_PATH` | path the MCP endpoint lives at | `/mcp` |
 | `MCP_EMPLOYEES_FILE` | the employee records to load | `data/employees.json` |
 | `MCP_POLICIES_FILE` | the role policies to load | `data/policies.json` |
+| `MCP_REVIEW_QUEUE_FILE` | where review flags are appended | `review-queue/review_queue.jsonl` |
 
 The order is defaults, then `config.toml`, then the environment, each overriding the one
 before. Both the server and the client script read the same settings, so they cannot end up
@@ -111,6 +118,7 @@ location is a setting.
 src/it_equipment/models.py        data types: employees, equipment, role policies
 src/it_equipment/repository.py    employee and policy lookups, and the item catalogue
 src/it_equipment/eligibility.py   the eligibility rules: every policy decision is made here
+src/it_equipment/review_queue.py  review flags, and the queue file they are appended to
 src/it_equipment/config.py        Settings, and the loader that layers them
 src/it_equipment/server.py        the MCP server and its tools
 scripts/check_connection.py       connects as a client and calls each tool
@@ -121,6 +129,7 @@ data/employees.json               mock employee records
 data/policies.json                mock policy rules, one record per role
 data/report/                      captured evidence for the lab report
 data/Lab/                         the lab brief
+review-queue/                     review flags written by the server (git-ignored)
 .github/workflows/ci.yml          the CI pipeline
 ```
 
