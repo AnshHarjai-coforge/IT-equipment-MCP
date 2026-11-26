@@ -19,7 +19,16 @@ dependencies = [
     # here as well because the connection check imports from it directly, to
     # recognise a failure to reach the server, and a package should declare
     # everything it imports rather than rely on another one bringing it along.
+    # anthropic accepts this pin: it asks for httpx2 2.x, at least 2.0.0.
     "httpx2==2.16.2",
+    # The official Claude SDK. The agent calls the model through its Microsoft
+    # Foundry client, which reads the Foundry key and resource name from the
+    # environment by itself.
+    "anthropic==2.14.0",
+    # Reads .env into the environment when the agent starts, so the Foundry
+    # key and the model name can live in a git-ignored file instead of being
+    # typed into every terminal.
+    "python-dotenv==1.2.4",
 ]
 
 # Installed only for development and in CI, via: pip install -e ".[dev]"
