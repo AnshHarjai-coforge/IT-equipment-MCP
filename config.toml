@@ -16,3 +16,6 @@ path = "/mcp"        # MCP_PATH
 # same thing no matter which directory the command is run from.
 employees = "data/employees.json"   # MCP_EMPLOYEES_FILE
 policies = "data/policies.json"     # MCP_POLICIES_FILE
+# Where flag_for_human_review appends each flag, one line of JSON per flag.
+# The folder is created on the first flag and is git-ignored.
+review_queue = "review-queue/review_queue.jsonl"   # MCP_REVIEW_QUEUE_FILE

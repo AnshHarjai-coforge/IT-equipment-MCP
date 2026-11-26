@@ -1,21 +1,24 @@
 """The MCP server: the only module in the package that imports mcp.
 
-The business logic stays in models.py, repository.py and eligibility.py,
-which know nothing about MCP. This module is the edge: it converts what those
+The business logic stays in models.py, repository.py, eligibility.py and
+review_queue.py, which know nothing about MCP. This module is the edge: it converts what those
 modules produce into what the protocol needs, and converts their errors into
 the error the protocol understands.
 
 Two conversions happen here, and nowhere else:
 
-    - date.today() is read, because a tool call happens on a particular day.
-      Nothing beneath this module looks at the clock; the date is passed down as
-      an argument so the same inputs always give the same answer.
+    - The clock is read (date.today(), datetime.now()) and review flags are
+      given random ids (uuid4()), only inside the tool functions, because a
+      tool call happens at a particular moment. Nothing beneath them looks at
+      the clock or makes an id; each is passed down as an argument, so the same
+      inputs always give the same answer.
     - EmployeeNotFoundError and RoleNotFoundError become ToolError, the SDK's
       way of telling the caller that a tool could not do its job.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from mcp.server import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -31,6 +34,7 @@ from it_equipment.repository import (
     load_employees_from_json,
     load_policies_from_json,
 )
+from it_equipment.review_queue import ReviewFlag, ReviewQueue
 
 
 def employee_info(repository: EmployeeRepository, employee_id: str, as_of: date) -> dict[str, Any]:
@@ -116,12 +120,73 @@ def request_eligibility(
     return decision.to_dict()
 
 
-def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> MCPServer:
+def human_review(
+    employees: EmployeeRepository,
+    queue: ReviewQueue,
+    employee_id: str,
+    request: str,
+    reason: str,
+    flag_id: str,
+    flagged_at: datetime,
+) -> dict[str, Any]:
+    """Record a request for a person to decide, and return the flag as a dictionary.
+
+    A plain function for the same reason as employee_info: a test calls it
+    directly, without the protocol in the way. The id and the time are passed
+    in rather than made here, so a test can assert fixed values.
+
+    Each check raises ToolError, because each is a flag the tool cannot record:
+    there is no such employee, or a reviewer would be handed nothing to act
+    on. Every check comes before the write, so a refused flag records nothing.
+    """
+    # The record itself is not needed, only the lookup: it is how an unknown id
+    # is caught before anything is written. A flag for an employee who does not
+    # exist would leave a reviewer nobody to answer.
+    try:
+        employees.get_employee(employee_id)
+    except EmployeeNotFoundError as error:
+        raise ToolError(str(error)) from error
+
+    # Whitespace alone counts as blank, since "   " gives a reviewer no more to
+    # go on than "". The text is still stored exactly as it was passed.
+    if request.strip() == "":
+        raise ToolError(
+            "The request is blank. Pass the employee's request in their own words, "
+            "so a reviewer knows what was asked."
+        )
+
+    if reason.strip() == "":
+        raise ToolError(
+            "The reason is blank. Say why this needs a person, so a reviewer knows what to check."
+        )
+
+    flag = ReviewFlag(
+        flag_id=flag_id,
+        employee_id=employee_id,
+        request=request,
+        reason=reason,
+        flagged_at=flagged_at,
+    )
+    queue.add(flag)
+
+    # "queued" goes in the reply only, not the file. Being in the file is what
+    # queued means, and once a person has dealt with the flag a stored "queued"
+    # would be wrong for good, in a file that is only ever appended to.
+    result = flag.to_dict()
+    result["status"] = "queued"
+    return result
+
+
+def build_server(
+    employees: EmployeeRepository,
+    policies: PolicyRepository,
+    review_queue: ReviewQueue,
+) -> MCPServer:
     """Build the MCP server and register its tools.
 
-    The repositories are handed in rather than loaded here, so a caller decides
-    where the data comes from and there is no module-level state. The entry
-    point below is what does the loading.
+    The repositories and the review queue are handed in rather than made here,
+    so a caller decides where the data comes from and where flags go, and there
+    is no module-level state. The entry point below is what does the loading.
     """
     mcp = MCPServer("it-equipment")
 
@@ -148,8 +213,8 @@ def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> M
         Args:
             employee_id: The employee's id (e.g. E001)
         """
-        # The only place in the program that reads the clock. Everything below
-        # this line receives the date as an argument.
+        # The tool functions are the only places that read the clock or make a
+        # random id. Everything below this line receives the date as an argument.
         return employee_info(employees, employee_id, as_of=date.today())
 
     # The same conventions as above: read-only, dict[str, Any] so a schema is
@@ -201,6 +266,51 @@ def build_server(employees: EmployeeRepository, policies: PolicyRepository) -> M
         """
         return request_eligibility(employees, policies, employee_id, item, as_of=date.today())
 
+    # The one tool that changes something: each call adds a flag to the queue.
+    # All three hints are written out, because the SDK treats a missing
+    # destructiveHint as true. Not destructive, because a flag is only ever
+    # added and nothing already recorded is changed or removed. Not
+    # idempotent, because calling it twice with the same arguments records two
+    # flags, not one.
+    @mcp.tool(
+        annotations=ToolAnnotations(
+            readOnlyHint=False,
+            destructiveHint=False,
+            idempotentHint=False,
+        )
+    )
+    def flag_for_human_review(employee_id: str, request: str, reason: str) -> dict[str, Any]:
+        """Send a request to a person for review, and record why.
+
+        Use this when check_request_eligibility returns "needs_review", or when
+        the request is ambiguous: it claims something the records cannot confirm
+        (damage, loss, a medical need), it is unclear which item or kind of
+        request is meant, or it asks for several things at once. Each call records
+        a new flag, so call it once per request. The result gives the flag_id.
+
+        Fails if no employee has that id, or if the request or reason is blank.
+        Nothing is recorded when it fails.
+
+        Args:
+            employee_id: The employee's id (e.g. E001)
+            request: The employee's request in their own words (e.g. I dropped
+                my laptop and cracked the screen)
+            reason: Why a person must decide, in one sentence (e.g. The damage
+                cannot be confirmed from the records)
+        """
+        # The id and the time are made here, as date.today() is in the tools
+        # above, so the plain function receives them and a test can pass fixed
+        # values. The time is taken in UTC so flags from anywhere sort the same.
+        return human_review(
+            employees,
+            review_queue,
+            employee_id,
+            request,
+            reason,
+            flag_id=str(uuid4()),
+            flagged_at=datetime.now(timezone.utc),
+        )
+
     return mcp
 
 
@@ -212,8 +322,9 @@ if __name__ == "__main__":
     settings = load_settings()
     employees = load_employees_from_json(settings.employees_file)
     policies = load_policies_from_json(settings.policies_file)
+    review_queue = ReviewQueue(settings.review_queue_file)
 
-    build_server(employees, policies).run(
+    build_server(employees, policies, review_queue).run(
         transport="streamable-http",
         host=settings.host,
         port=settings.port,
