@@ -294,8 +294,9 @@ def build_server(
 
         Args:
             employee_id: The employee's id (e.g. E001)
-            request: The employee's request in their own words (e.g. I dropped
-                my laptop and cracked the screen)
+            request: The employee's request exactly as they sent it, word for
+                word, typos included, never a summary (e.g. I dropped my laptop
+                and cracked the screen)
             reason: Why a person must decide, in one sentence (e.g. The damage
                 cannot be confirmed from the records)
         """
