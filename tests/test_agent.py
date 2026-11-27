@@ -23,6 +23,7 @@ from it_equipment.agent import (
     NoToolCallError,
     TraceStep,
     action_text,
+    first_exception_inside,
     lines_under_label,
     print_step,
     run_first_tool_call,
@@ -383,3 +384,22 @@ def test_the_models_own_line_breaks_are_kept_when_wrapping():
     text = wrapped_lines_under_label("Thinking", "First, her role.\nThen, the laptop rules.")
 
     assert text == "  Thinking:    First, her role.\n               Then, the laptop rules."
+
+
+def test_first_exception_inside_finds_an_error_two_groups_deep():
+    """How an error raised inside the MCP client's block arrives."""
+    error = NoToolCallError("end_turn", "")
+    wrapped = ExceptionGroup("outer", [ExceptionGroup("inner", [error])])
+
+    found = first_exception_inside(wrapped)
+
+    assert found is error
+
+
+def test_first_exception_inside_finds_an_error_one_group_deep():
+    """How a refused connection arrives."""
+    error = ConnectionRefusedError("All connection attempts failed")
+
+    found = first_exception_inside(ExceptionGroup("only", [error]))
+
+    assert found is error

@@ -11,23 +11,37 @@ run shows all of it.
 
 This module imports nothing from mcp. The MCP client is made, and its tools
 and results are taken apart, in agent_tools.py.
+
+Run it in a second terminal, with the server already running:
+
+    python -m it_equipment.server   # terminal 1
+    python -m it_equipment.agent    # terminal 2
+
+It reads the Foundry key, the resource name and the deployment name from .env
+by itself. Never source .env into a terminal: Claude Code reads
+ANTHROPIC_MODEL as well, and would pick up the deployment name as its own.
 """
 
+import asyncio
 import json
 import textwrap
 from dataclasses import dataclass
 from typing import Any
 
-from anthropic import AsyncAnthropicFoundry
+from anthropic import APIError, AsyncAnthropicFoundry
 from anthropic.types import Message, ToolUseBlock
+from dotenv import load_dotenv
+from httpx2 import TransportError
 
 from it_equipment.agent_tools import (
     Client,
     arguments_without_thought,
     claude_tools_from_server,
+    connect_to_server,
     observation_text,
     thought_from_arguments,
 )
+from it_equipment.config import REPO_ROOT, load_settings
 from it_equipment.prompts import SYSTEM_PROMPT
 
 # Demo request 1, from Priya (E001). The id sits outside the quotes because it
@@ -292,3 +306,88 @@ def wrapped_lines_under_label(label: str, text: str) -> str:
                 wrapped.append(piece)
 
     return lines_under_label(label, "\n".join(wrapped))
+
+
+def first_exception_inside(group: BaseExceptionGroup) -> BaseException:
+    """Return the first exception in a group that is not itself a group.
+
+    The MCP client wraps an error raised inside its block in a group, and that
+    group in another one. except* recognises the error inside, but hands back
+    the wrapping with it, so this takes the first item one layer at a time
+    until it reaches the error itself, however many layers there are.
+    """
+    error = group
+    while isinstance(error, BaseExceptionGroup):
+        error = error.exceptions[0]
+
+    return error
+
+
+def report_unreachable(url: str, reason: BaseException) -> None:
+    """Explain that the MCP server could not be reached, without a stack trace.
+
+    The same words check_connection.py uses. The cause is almost always that
+    the server has not been started, which deserves an instruction rather than
+    a traceback.
+    """
+    print(f"Could not reach the MCP server at {url}")
+    print(f"  {type(reason).__name__}: {reason}")
+    print()
+    print("Is it running? Start it in another terminal with:")
+    print("  python -m it_equipment.server")
+
+
+def report_model_failure(reason: BaseException) -> None:
+    """Explain that the call to the model failed, without a stack trace.
+
+    The usual causes are a mistyped resource or deployment name, or a key
+    Foundry refuses. The message is the SDK's own: the status code and
+    Foundry's reply, which never include the key.
+    """
+    print()
+    print(f"The model call failed: {type(reason).__name__}: {reason}")
+    print()
+    print("Check ANTHROPIC_FOUNDRY_RESOURCE, ANTHROPIC_FOUNDRY_API_KEY and ANTHROPIC_MODEL.")
+
+
+async def main() -> None:
+    settings = load_settings()
+    url = settings.mcp_url()
+
+    try:
+        # The model client is opened first. It reads its own key from the
+        # environment, and with none it fails right here, before any
+        # connection is made, with the SDK's own error: that names the variable
+        # to set and holds no key. None of the handlers below catches it.
+        async with AsyncAnthropicFoundry() as model_client:
+            async with connect_to_server(url) as mcp_client:
+                await run_first_tool_call(
+                    model_client, mcp_client, settings.model, HARDCODED_REQUEST
+                )
+    # "except*" for the reason check_connection.py gives: the MCP client wraps
+    # a failure in a group, often a group inside a group, and "except*" looks
+    # inside. Python does not allow "except" and "except*" on the same try,
+    # so all three are written this way.
+    except* TransportError as unreachable:
+        report_unreachable(url, first_exception_inside(unreachable))
+
+        # A failed run should fail the command too, so a script or a pipeline
+        # running it cannot mistake it for success.
+        raise SystemExit(1)
+    except* NoToolCallError as no_tool_call:
+        print()
+        print(first_exception_inside(no_tool_call))
+        raise SystemExit(1)
+    except* APIError as model_failure:
+        report_model_failure(first_exception_inside(model_failure))
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    # .env is read here and nowhere else. Loading it inside load_settings would
+    # let a real .env leak into the tests; here it reaches only this process.
+    # The file beside config.toml is named outright, rather than left to
+    # python-dotenv's own search upwards from this file. A variable already
+    # set in the environment wins over .env, which is python-dotenv's default.
+    load_dotenv(REPO_ROOT / ".env")
+    asyncio.run(main())
