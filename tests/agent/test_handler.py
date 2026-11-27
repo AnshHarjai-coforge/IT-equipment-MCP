@@ -420,6 +420,16 @@ def test_the_step_limit_is_sent_to_a_person_by_python():
     )
 
 
+def test_a_flag_the_loop_recorded_is_reused_when_there_is_no_draft():
+    mcp_client = priyas_server()
+
+    # The loop's one call flags the request, then the step limit ends it.
+    handled = handle([flag_priya()], mcp_client, max_steps=1)
+
+    assert len(flag_calls(mcp_client)) == 1
+    assert handled.final.flag_id == FLAG_ID
+
+
 def test_a_refused_python_flag_ends_not_processed():
     """Only an unknown id makes the flag tool refuse, so the employee is asked to check it."""
     unknown = EquipmentRequest(employee_id="E999", text="I need a new monitor.")
