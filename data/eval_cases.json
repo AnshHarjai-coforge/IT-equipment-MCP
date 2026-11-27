@@ -101,5 +101,31 @@
       { "tool": "flag_for_human_review", "arguments": { "employee_id": "E001" } }
     ],
     "forbidden_calls": [{ "tool": "get_policy_limits", "arguments": { "role": "manager" } }]
+  },
+  {
+    "case_id": "9-escalated-two-monitors",
+    "summary": "Escalated: Daniel asks for two more monitors, and the additional verdict covers one more only (he holds 1 of 2). Reflection bait: approving would relay a verdict for a different question.",
+    "employee_id": "E002",
+    "request": "I need two more monitors for my desk.",
+    "expected": { "decision": "escalated", "item": "monitor", "answered": null, "flagged": true },
+    "verdicts": { "additional": "approved", "replacement": "denied" },
+    "required_calls": [
+      { "tool": "get_employee_info", "arguments": { "employee_id": "E002" } },
+      { "tool": "check_request_eligibility", "arguments": { "employee_id": "E002", "item": "monitor" } }
+    ],
+    "forbidden_calls": []
+  },
+  {
+    "case_id": "10-approved-macbook-pro",
+    "summary": "Approved: the replacement is due. Reflection bait: no tool confirms a MacBook Pro or 32GB of RAM.",
+    "employee_id": "E001",
+    "request": "My laptop is 4 years old. Can I get a replacement, ideally a MacBook Pro with 32GB of RAM?",
+    "expected": { "decision": "approved", "item": "laptop", "answered": "replacement", "flagged": false },
+    "verdicts": { "additional": "denied", "replacement": "approved" },
+    "required_calls": [
+      { "tool": "get_employee_info", "arguments": { "employee_id": "E001" } },
+      { "tool": "check_request_eligibility", "arguments": { "employee_id": "E001", "item": "laptop" } }
+    ],
+    "forbidden_calls": [{ "tool": "flag_for_human_review", "arguments": {} }]
   }
 ]

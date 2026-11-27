@@ -116,7 +116,7 @@ def test_a_record_missing_a_field_raises_key_error():
         build_case(record)
 
 
-def test_the_committed_file_holds_the_eight_demo_requests_in_order():
+def test_the_committed_file_holds_the_ten_demo_requests_in_order():
     case_ids = []
     for case in COMMITTED_CASES:
         case_ids.append(case.case_id)
@@ -130,6 +130,8 @@ def test_the_committed_file_holds_the_eight_demo_requests_in_order():
         "6-approved-new-starter",
         "7-denied-second-macbook",
         "8-escalated-injection",
+        "9-escalated-two-monitors",
+        "10-approved-macbook-pro",
     ]
 
 
