@@ -16,6 +16,8 @@ from it_equipment.agent.trace import (
     print_draft,
     print_loop_heading,
     print_loop_stopped,
+    print_python_flag_failed,
+    print_python_flagged,
     print_step,
     print_user_query,
     wrapped_lines_under_label,
@@ -131,6 +133,27 @@ def test_a_long_stopped_line_is_wrapped_within_the_line_width(capsys):
     assert len(lines) > 2
     for line in lines:
         assert len(line) <= LINE_WIDTH
+
+
+def test_pythons_flag_is_printed_with_its_id(capsys):
+    print_python_flagged("5f0c6a8e-2b1d-4e7a-9c3f-8d2e1b0a7c64")
+
+    assert capsys.readouterr().out == (
+        "  Python sent the request to a person instead: "
+        "flag id 5f0c6a8e-2b1d-4e7a-9c3f-8d2e1b0a7c64.\n"
+    )
+
+
+def test_a_failed_python_flag_is_printed_with_the_tools_error(capsys):
+    error = "Error executing tool flag_for_human_review: \"No employee with id 'E999'\""
+
+    print_python_flag_failed(error)
+
+    assert capsys.readouterr().out == (
+        "  Python could not send the request to a person: Error executing tool "
+        'flag_for_human_review: "No\n'
+        "  employee with id 'E999'\"\n"
+    )
 
 
 def test_action_text_reads_like_a_function_call():

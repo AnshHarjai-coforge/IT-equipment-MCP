@@ -132,6 +132,15 @@ def arguments_without_thought(arguments: dict[str, Any]) -> dict[str, Any]:
     return without_thought
 
 
+def flag_id_from_result(result: CallToolResult) -> str:
+    """Return the flag_id from a successful flag_for_human_review result.
+
+    Only for a result that is not an error: an error carries no dictionary,
+    so check is_error first.
+    """
+    return result.structured_content["flag_id"]
+
+
 def observation_text(result: CallToolResult) -> str:
     """Return a tool result as the text the model reads and the trace prints.
 

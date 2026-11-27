@@ -17,6 +17,7 @@ from it_equipment.agent.mcp_bridge import (
     claude_tool_from_mcp_tool,
     claude_tools_from_server,
     connect_to_server,
+    flag_id_from_result,
     observation_text,
     thought_from_arguments,
 )
@@ -233,3 +234,12 @@ def test_an_employees_own_characters_are_kept_as_written():
     text = observation_text(result)
 
     assert "I’d like a dock" in text
+
+
+def test_flag_id_from_result_returns_the_flags_id():
+    flag = {"flag_id": "5f0c6a8e-2b1d-4e7a-9c3f-8d2e1b0a7c64", "status": "queued"}
+    result = CallToolResult(content=[], structured_content=flag)
+
+    flag_id = flag_id_from_result(result)
+
+    assert flag_id == "5f0c6a8e-2b1d-4e7a-9c3f-8d2e1b0a7c64"
