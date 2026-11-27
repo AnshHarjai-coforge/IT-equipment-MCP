@@ -25,6 +25,9 @@ The agent connects to the server as an MCP client and runs an explicit ReAct loo
 tools for the request it is given, printing every Thought, Action and Observation, until the
 model writes its draft decision. Reflection on that draft is still to come.
 
+The eight demo requests are also eval cases: CI checks that the server still gives each one the
+answers it needs, and a paid runner grades the agent on all eight at once.
+
 ## Requirements
 
 Python 3.12.
@@ -134,6 +137,51 @@ If the server isn't running, or if Foundry refuses the call, the agent says so i
 and exits with status 1. A missing argument or a blank request prints the usage and exits with
 status 2.
 
+## Evaluating the agent
+
+[`data/eval_cases.json`](data/eval_cases.json) holds the eight demo requests as eval cases. Each
+case has the sender and their words, and what a correct run looks like:
+
+- `expected`: the draft's decision, item and answered, and whether a flag is recorded
+- `verdicts`: the two verdicts `check_request_eligibility` gives, as of the tests' fixed date
+  (`null` when no employee has the id)
+- `required_calls`: tool calls the run must include, listing only the arguments that matter
+- `forbidden_calls`: tool calls the run must not include; one with no arguments forbids the
+  tool outright
+
+The cases are used twice.
+
+**In CI, with no model.** `tests/evals/test_cases_against_server.py` makes each case's required
+calls with the server's plain functions and checks the answers: for example, case 1's
+`check_request_eligibility("E001", "laptop")` must still give the replacement `approved`. A
+change to the employees or the policies that would quietly break a demo answer fails `pytest`.
+
+**With the real model, paid.** The runner runs the agent on every case and grades each run:
+
+```bash
+python -m it_equipment.evals              # every case once
+python -m it_equipment.evals --repeat 3   # every case three times, to see how steady it is
+```
+
+It needs the same `.env` as the agent, and loads it the same way. No server needs to be running:
+it builds one inside its own process, from the same data files, with the review queue in a
+temporary folder that is deleted at the end, so the real `review-queue/` is never touched.
+
+For each run it prints a heading naming the case, the agent's trace exactly as
+`python -m it_equipment.agent` prints it, and a `Result`: passed or failed, the problems and
+warnings, and how many calls to the model the run made. A run passes when:
+
+- the draft's decision, item and answered are the case's, exactly
+- every required call was made (other calls, in any order, are allowed)
+- no forbidden call was made
+- one flag was recorded when the case expects one, none otherwise, and any flag id in the draft
+  is one the run received
+
+The message text is not graded. A flag whose request is not the employee's words exactly is a
+warning, not a failure. At the end a scorecard gives one row per case and repeats every failed
+run's problems. The runner exits with status 1 if any run failed. Each case takes about two to
+four calls to the model, so one pass over the eight is roughly 20 to 30 paid calls.
+
 ## Configuration
 
 Settings live in [`config.toml`](config.toml). Every one of them has a default in
@@ -189,14 +237,23 @@ src/it_equipment/agent/           the agent, one job per module:
     draft.py                      the draft decision, its schema, and reading it back
     mcp_bridge.py                 MCP tools into Claude tools, and tool results into text
     trace.py                      the trace's steps, and how everything is printed
+src/it_equipment/evals/           the eval harness, one job per module:
+    __main__.py                   what "python -m it_equipment.evals" runs: loads .env, then main()
+    cli.py                        the runner: builds the server in-process, runs every case
+    cases.py                      the eval cases, and reading them from the JSON file
+    grading.py                    grading one run against its case
+    model_calls.py                counts the agent's calls to the model
+    scorecard.py                  each run's result, and the scorecard
 scripts/check_connection.py       connects as a client and calls each tool
 config.toml                       application settings
 .env.example                      the template for .env, which holds the Foundry key
 tests/                            unit tests, run against the plain functions
 tests/agent/                      the agent's tests, one file per module
+tests/evals/                      the eval harness's tests, and the CI check of every case
 docs/requirements.md              requirements and policy rules (deliverable 1)
 data/employees.json               mock employee records
 data/policies.json                mock policy rules, one record per role
+data/eval_cases.json              the demo requests as eval cases
 data/report/                      captured evidence for the lab report
 data/Lab/                         the lab brief
 review-queue/                     review flags written by the server (git-ignored)
@@ -206,4 +263,5 @@ review-queue/                     review flags written by the server (git-ignore
 Business logic lives in plain functions and classes with no MCP imports: `server.py` is the
 only module on the server side that imports `mcp`, and it is a thin wrapper over those plain
 functions, so the logic stays directly testable. On the agent side, `agent/mcp_bridge.py` is
-the only module that imports `mcp`.
+the only module that imports `mcp`. The eval runner, `evals/cli.py`, imports it too, to build
+the server inside its own process.
