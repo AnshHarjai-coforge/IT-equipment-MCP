@@ -15,13 +15,13 @@ Values line up in the trace's column and prose wraps at its width, using the
 trace's own layout helpers, so the runner's output reads as one piece.
 """
 
-import textwrap
 from dataclasses import dataclass
 
 from it_equipment.agent.trace import (
     LINE_WIDTH,
     VALUE_COLUMN,
     lines_under_label,
+    numbered_text,
     wrapped_lines_under_label,
 )
 from it_equipment.evals.cases import EvalCase
@@ -131,31 +131,6 @@ def failed_runs(case_runs: list[CaseRun]) -> list[CaseRun]:
             failed.append(case_run)
 
     return failed
-
-
-def numbered_text(sentences: list[str], width: int) -> str:
-    """Return sentences as a numbered list, wrapped within width; "none" when there are none.
-
-    A sentence too long for one line carries on under its own first word,
-    not under the number, so each item reads as one block:
-
-        1. Decision: expected escalated; the draft says denied.
-        2. Required call not made: ...
-    """
-    if len(sentences) == 0:
-        return "none"
-
-    lines = []
-    number = 0
-    for sentence in sentences:
-        number = number + 1
-        label = f"{number}. "
-        pieces = textwrap.wrap(sentence, width=width - len(label))
-        lines.append(label + pieces[0])
-        for piece in pieces[1:]:
-            lines.append(" " * len(label) + piece)
-
-    return "\n".join(lines)
 
 
 def table_lines(rows: list[list[str]]) -> list[str]:

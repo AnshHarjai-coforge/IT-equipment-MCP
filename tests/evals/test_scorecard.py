@@ -9,7 +9,6 @@ from it_equipment.evals.cases import EvalCase, ExpectedOutcome
 from it_equipment.evals.grading import RunGrade
 from it_equipment.evals.scorecard import (
     CaseRun,
-    numbered_text,
     plural,
     print_case_heading,
     print_run_result,
@@ -77,18 +76,6 @@ def test_a_failed_run_prints_its_problems_numbered(capsys):
         "  Problems:       1. Decision: expected escalated; the draft says denied.\n"
         "                  2. Flags: expected 1; recorded 0.\n"
     ) in printed
-
-
-def test_a_long_numbered_sentence_carries_on_under_its_first_word():
-    sentence = "Flag id: the draft gives a flag id which this run did not receive."
-
-    text = numbered_text([sentence], 40)
-
-    assert text == "1. Flag id: the draft gives a flag id\n   which this run did not receive."
-
-
-def test_no_sentences_are_written_as_none():
-    assert numbered_text([], 80) == "none"
 
 
 def test_table_columns_line_up_with_two_spaces_between():
