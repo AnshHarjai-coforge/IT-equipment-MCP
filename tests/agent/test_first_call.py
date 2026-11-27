@@ -303,8 +303,9 @@ def test_a_tool_call_that_is_not_run_is_still_printed(capsys):
 
     printed = capsys.readouterr().out
     assert "Tool call 2 of 2  (not run: this branch runs only the first)" in printed
-    assert "  Thought:     Then the laptop rules." in printed
-    assert '  Action:      check_request_eligibility(employee_id="E001", item="laptop")' in printed
+    assert "  Thought 2:      Then the laptop rules." in printed
+    action = '  Action 2:       check_request_eligibility(employee_id="E001", item="laptop")'
+    assert action in printed
 
 
 def test_the_request_is_printed_first(capsys):
@@ -325,8 +326,8 @@ def test_the_thinking_summary_and_the_text_are_printed(capsys):
 
     printed = capsys.readouterr().out
     assert "Model reply  (stop reason: tool_use)" in printed
-    assert "  Thinking:    She wants a new laptop." in printed
-    assert "  Text:        I'll look up her record first." in printed
+    assert "  Thinking:       She wants a new laptop." in printed
+    assert "  Text:           I'll look up her record first." in printed
 
 
 def test_thinking_with_no_summary_prints_no_thinking_line(capsys):

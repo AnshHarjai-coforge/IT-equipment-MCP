@@ -105,6 +105,8 @@ async def run_first_tool_call(
     result = await mcp_client.call_tool(first_call.name, arguments)
 
     step = TraceStep(
+        # The first call is the only one run, so it is always number 1.
+        number=1,
         thought=thought_from_arguments(first_call.input),
         tool_name=first_call.name,
         arguments=arguments,
