@@ -1,8 +1,9 @@
 """Unit tests for the eval runner: its command line, one run, every run, and the exit rule.
 
 The model is a scripted fake that hands back real anthropic Message objects,
-and the MCP server a fake that returns a set result per tool, so nothing is
-paid for and no server is started. main() itself opens the real model client
+and confirms the draft whenever reflection calls it; the MCP server is a fake
+that returns a set result per tool. So nothing is paid for and no server is
+started. main() itself opens the real model client
 and builds the real server, so it is checked by hand, offline, against a stub
 model. The async functions run with asyncio.run, from the standard library.
 """
@@ -73,15 +74,34 @@ def draft(fields: dict) -> Message:
     return model_reply([TextBlock(type="text", text=json.dumps(fields))], "end_turn")
 
 
+# Reflection's answer in every run here. A confirmation keeps the loop's draft
+# whatever final says, so one review serves every draft these tests script.
+CONFIRMING_REVIEW = draft(
+    {
+        "assessment": "confirmed",
+        "problems": [],
+        "checked": "The decision against Observation 1, which refused E999.",
+        "final": NOT_PROCESSED,
+    }
+)
+
+
 class ScriptedMessages:
-    """Hands back the scripted replies in order, starting again for each new run."""
+    """Hands back the loop's scripted replies in order, starting again for each new run.
+
+    Reflection's call is answered with CONFIRMING_REVIEW instead.
+    """
 
     def __init__(self, replies: list[Message]) -> None:
         self.replies = replies
         self.count = 0
 
     async def create(self, **kwargs) -> Message:
-        # The first message of a run is the request alone, so that is where
+        # Reflection's call is the only one sent with no tools.
+        if "tools" not in kwargs:
+            return CONFIRMING_REVIEW
+
+        # The first message of a loop is the request alone, so that is where
         # the script starts again.
         if len(kwargs["messages"]) == 1:
             self.count = 0
@@ -149,17 +169,19 @@ def test_a_run_that_matches_its_case_passes():
         case_id="5-not-processed-unknown-id",
         run_number=1,
         grade=RunGrade(problems=[]),
-        model_calls=2,
+        model_calls=3,
     )
 
 
 def test_a_run_that_differs_from_its_case_fails():
-    approved = dict(NOT_PROCESSED)
-    approved["decision"] = "approved"
+    # A different item, which the Python check lets through, so the final
+    # answer keeps it. A wrong decision would end as Python's escalation.
+    about_a_laptop = dict(NOT_PROCESSED)
+    about_a_laptop["item"] = "laptop"
 
-    case_run = run_once(ScriptedMessages([look_up_e999(), draft(approved)]))
+    case_run = run_once(ScriptedMessages([look_up_e999(), draft(about_a_laptop)]))
 
-    assert case_run.grade.problems == ["Decision: expected not_processed; the draft says approved."]
+    assert case_run.grade.problems == ["Item: expected monitor; the final answer says laptop."]
 
 
 def test_the_agents_trace_is_printed_during_the_run(capsys):
@@ -230,7 +252,7 @@ def test_each_run_is_printed_as_heading_trace_then_result(capsys):
         "\n"
         "User query\n"
     )
-    assert printed.endswith("  Model calls:    2\n\n")
+    assert printed.endswith("  Model calls:    3\n\n")
 
 
 def test_one_failed_run_means_not_every_run_passed():

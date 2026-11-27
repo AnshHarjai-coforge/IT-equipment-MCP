@@ -102,16 +102,6 @@ def print_loop_stopped(stopped_because: str) -> None:
     print(wrapped_line(f"The ReAct loop stopped: {stopped_because}, so there is no draft."))
 
 
-def print_python_flagged(flag_id: str) -> None:
-    """Print the line saying Python sent a request with no draft to a person, with the flag's id."""
-    print(wrapped_line(f"Python sent the request to a person instead: flag id {flag_id}."))
-
-
-def print_python_flag_failed(error_text: str) -> None:
-    """Print the line saying Python could not send the request to a person, and the tool's error."""
-    print(wrapped_line(f"Python could not send the request to a person: {error_text}"))
-
-
 def print_reflection_skipped() -> None:
     """Print Step 2 when the loop ended without a draft: there is nothing to review."""
     print()

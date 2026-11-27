@@ -91,10 +91,10 @@ async def run_case(
     counting_client = CountingModelClient(model_client)
 
     try:
-        result = await handle_request(
+        handled = await handle_request(
             counting_client, mcp_client, model, max_tokens, max_steps, case.request
         )
-        grade = grade_run(case, result)
+        grade = grade_run(case, handled)
     except APIError as error:
         # Foundry overloaded, a rate limit, a refused key. The run fails with
         # the error shown, and the runner carries on with the next one, so a

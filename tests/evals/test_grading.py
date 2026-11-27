@@ -1,16 +1,17 @@
 """Unit tests for grading one run against its eval case.
 
-Every run here is a literal LoopResult: steps and a draft written out by hand,
-with no model and no server. Most tests start from a correct run of Sofia's
-case (demo request 4) and change one thing, so each failure is about that one
-thing. dataclasses.replace, from the standard library, copies a frozen
-dataclass with one field changed.
+Every run here is a literal HandledRequest: steps, a draft and a final answer
+written out by hand, with no model and no server. Most tests start from a
+correct run of Sofia's case (demo request 4) and change one thing, so each
+failure is about that one thing. dataclasses.replace, from the standard
+library, copies a frozen dataclass with one field changed.
 """
 
 import json
 from dataclasses import replace
 
 from it_equipment.agent.draft import Draft
+from it_equipment.agent.handler import HandledRequest
 from it_equipment.agent.react_loop import LoopResult
 from it_equipment.agent.request import EquipmentRequest
 from it_equipment.agent.trace import TraceStep
@@ -19,6 +20,7 @@ from it_equipment.evals.grading import RunGrade, grade_run
 
 SOFIAS_WORDS = "I dropped my laptop and cracked the screen. I need a replacement."
 FLAG_ID = "70d4994c-b35e-4002-b59d-66255144ed56"
+PYTHON_FLAG_ID = "0b8e6f3a-91c4-4d2e-8a7b-5c3d2e1f0a9b"
 
 SOFIAS_CASE = EvalCase(
     case_id="4-escalated-damage-claim",
@@ -101,8 +103,17 @@ def sofias_steps() -> list[TraceStep]:
     ]
 
 
-def run(trace: list[TraceStep], draft: Draft | None, stopped_because: str = "") -> LoopResult:
-    return LoopResult(trace=trace, draft=draft, stopped_because=stopped_because)
+def run(trace: list[TraceStep], final: Draft, python_flag_id: str | None = None) -> HandledRequest:
+    """A run whose final answer is the loop's own draft, as when reflection confirms it."""
+    loop = LoopResult(trace=trace, draft=final, stopped_because="")
+    return HandledRequest(loop=loop, final=final, python_flag_id=python_flag_id)
+
+
+def run_without_a_draft(stopped_because: str) -> HandledRequest:
+    """A run whose loop stopped with no draft, so Python flagged it and wrote the answer."""
+    loop = LoopResult(trace=[], draft=None, stopped_because=stopped_because)
+    final = replace(SOFIAS_DRAFT, flag_id=PYTHON_FLAG_ID)
+    return HandledRequest(loop=loop, final=final, python_flag_id=PYTHON_FLAG_ID)
 
 
 def test_a_run_that_matches_its_case_has_no_problems():
@@ -116,7 +127,19 @@ def test_a_different_decision_is_a_problem():
 
     grade = grade_run(SOFIAS_CASE, run(sofias_steps(), draft))
 
-    assert grade.problems == ["Decision: expected escalated; the draft says denied."]
+    assert grade.problems == ["Decision: expected escalated; the final answer says denied."]
+
+
+def test_the_final_answer_is_graded_not_the_draft():
+    """The loop drafted a denial; reflection or the Python check made it the escalation expected."""
+    loop = LoopResult(
+        trace=sofias_steps(), draft=replace(SOFIAS_DRAFT, decision="denied"), stopped_because=""
+    )
+    handled = HandledRequest(loop=loop, final=SOFIAS_DRAFT, python_flag_id=None)
+
+    grade = grade_run(SOFIAS_CASE, handled)
+
+    assert grade.problems == []
 
 
 def test_a_different_item_is_a_problem():
@@ -124,7 +147,7 @@ def test_a_different_item_is_a_problem():
 
     grade = grade_run(SOFIAS_CASE, run(sofias_steps(), draft))
 
-    assert grade.problems == ["Item: expected laptop; the draft says monitor."]
+    assert grade.problems == ["Item: expected laptop; the final answer says monitor."]
 
 
 def test_a_missing_value_is_written_as_none():
@@ -132,11 +155,11 @@ def test_a_missing_value_is_written_as_none():
 
     grade = grade_run(SOFIAS_CASE, run(sofias_steps(), draft))
 
-    assert grade.problems == ["Answered: expected none; the draft says replacement."]
+    assert grade.problems == ["Answered: expected none; the final answer says replacement."]
 
 
 def test_a_run_without_a_draft_fails_with_the_loops_reason():
-    grade = grade_run(PRIYAS_CASE, run([], None, "the model refused"))
+    grade = grade_run(PRIYAS_CASE, run_without_a_draft("the model refused"))
 
     assert grade.problems[0] == "The ReAct loop stopped: the model refused, so there is no draft."
 
@@ -224,8 +247,18 @@ def test_no_flag_where_one_is_expected_is_a_problem():
     assert grade.problems == [
         'Required call not made: flag_for_human_review(employee_id="E003").',
         "Flags: expected 1; recorded 0.",
-        "Flag id: a flag was expected, but the draft gives none.",
+        "Flag id: a flag was expected, but the final answer gives none.",
     ]
+
+
+def test_pythons_flag_counts_as_the_runs_flag():
+    """Case 9: the loop or Python may make the flag, so the case requires no flag call."""
+    case = replace(SOFIAS_CASE, required_calls=SOFIAS_CASE.required_calls[:2])
+    final = replace(SOFIAS_DRAFT, flag_id=PYTHON_FLAG_ID)
+
+    grade = grade_run(case, run(sofias_steps()[:2], final, PYTHON_FLAG_ID))
+
+    assert grade.problems == []
 
 
 def test_two_flags_where_one_is_expected_is_a_problem():
@@ -260,7 +293,7 @@ def test_a_flag_id_the_run_never_received_is_a_problem():
     grade = grade_run(SOFIAS_CASE, run(sofias_steps(), draft))
 
     assert grade.problems == [
-        "Flag id: the draft gives made-up-id, which this run did not receive."
+        "Flag id: the final answer gives made-up-id, which this run did not receive."
     ]
 
 

@@ -169,17 +169,20 @@ temporary folder that is deleted at the end, so the real `review-queue/` is neve
 
 For each run it prints a heading naming the case, the agent's trace exactly as
 `python -m it_equipment.agent` prints it, and a `Result`: passed or failed, the problems, and
-how many calls to the model the run made. A run passes when:
+how many calls to the model the run made. What is graded is the final answer, the one the
+employee gets after reflection and the Python check. A run passes when:
 
-- the draft's decision, item and answered are the case's, exactly
+- the final answer's decision, item and answered are the case's, exactly; a run whose ReAct
+  loop ended without a draft fails, whatever Python did next
 - every required call was made (other calls, in any order, are allowed)
 - no forbidden call was made
-- one flag was recorded when the case expects one, none otherwise, and any flag id in the draft
-  is one the run received
+- one flag was recorded when the case expects one, none otherwise, and any flag id in the final
+  answer is one the run received; a flag Python made counts as the run's flag
 
-The message text is not graded. At the end a scorecard gives one row per case and repeats every failed
-run's problems. The runner exits with status 1 if any run failed. Each case takes about two to
-four calls to the model, so one pass over the eight is roughly 20 to 30 paid calls.
+The message text is not graded. At the end a scorecard gives one row per case and repeats every
+failed run's problems. The runner exits with status 1 if any run failed. Each case takes about
+three to five calls to the model, reflection's included, so one pass over the ten is roughly 35
+paid calls.
 
 ## Configuration
 
