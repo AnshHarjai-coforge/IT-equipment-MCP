@@ -9,9 +9,9 @@ It does two conversions, one in each direction:
     - A tool result becomes the observation text the model reads and the
       trace prints.
 
-Keeping these here means agent.py never handles an MCP object's insides, and
-each conversion is tested on its own, from literal mcp.types objects, with no
-server and no model.
+Keeping these here means the rest of the agent never handles an MCP object's
+insides, and each conversion is tested on its own, from literal mcp.types
+objects, with no server and no model.
 """
 
 import copy
@@ -36,7 +36,8 @@ def connect_to_server(url: str) -> Client:
     """Return an MCP client for the server at this address.
 
     Nothing connects yet: the client connects when it is opened with
-    "async with". It is made here so that agent.py needs no mcp import.
+    "async with". It is made here so that no other agent module needs an mcp
+    import.
     """
     return Client(url)
 

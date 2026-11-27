@@ -1,4 +1,4 @@
-"""Unit tests for the agent's first tool call and its printed trace.
+"""Unit tests for the agent's first tool call and what it prints.
 
 The model and the MCP server are both replaced by plain fake classes, so no
 model is paid for, no server is started, and every run gives the same result.
@@ -17,19 +17,13 @@ import pytest
 from anthropic.types import Message, TextBlock, ThinkingBlock, ToolUseBlock, Usage
 from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
 
-from it_equipment.agent import (
+from it_equipment.agent.first_call import (
     HARDCODED_REQUEST,
-    LINE_WIDTH,
     NoToolCallError,
-    TraceStep,
-    action_text,
-    first_exception_inside,
-    lines_under_label,
-    print_step,
     run_first_tool_call,
-    wrapped_lines_under_label,
 )
-from it_equipment.prompts import SYSTEM_PROMPT
+from it_equipment.agent.prompts import SYSTEM_PROMPT
+from it_equipment.agent.trace import TraceStep
 
 # Priya's record as get_employee_info returns it.
 PRIYA = {
@@ -342,78 +336,3 @@ def test_thinking_with_no_summary_prints_no_thinking_line(capsys):
     run(model_client, FakeMcpClient(priya_found()))
 
     assert "Thinking:" not in capsys.readouterr().out
-
-
-def test_print_step_lines_the_values_up_in_one_column(capsys):
-    step = TraceStep(
-        thought="I need her role.",
-        tool_name="get_employee_info",
-        arguments={"employee_id": "E001"},
-        observation='{\n  "role": "standard"\n}',
-        is_error=False,
-    )
-
-    print_step(step)
-
-    assert capsys.readouterr().out == (
-        "  Thought:     I need her role.\n"
-        '  Action:      get_employee_info(employee_id="E001")\n'
-        "  Observation: {\n"
-        '                 "role": "standard"\n'
-        "               }\n"
-    )
-
-
-def test_a_missing_thought_is_printed_as_none_given(capsys):
-    step = TraceStep("", "get_employee_info", {"employee_id": "E001"}, "{}", False)
-
-    print_step(step)
-
-    assert "  Thought:     (none given)\n" in capsys.readouterr().out
-
-
-def test_action_text_reads_like_a_function_call():
-    text = action_text("check_request_eligibility", {"employee_id": "E001", "item": "laptop"})
-
-    assert text == 'check_request_eligibility(employee_id="E001", item="laptop")'
-
-
-def test_a_blank_line_in_the_text_has_no_trailing_spaces():
-    text = lines_under_label("Text", "First paragraph.\n\nSecond paragraph.")
-
-    assert text == "  Text:        First paragraph.\n\n               Second paragraph."
-
-
-def test_long_prose_is_wrapped_within_the_line_width():
-    long_thought = "She holds one laptop that is four years old. " * 5
-
-    lines = wrapped_lines_under_label("Thought", long_thought).splitlines()
-
-    assert len(lines) > 1
-    for line in lines:
-        assert len(line) <= LINE_WIDTH
-
-
-def test_the_models_own_line_breaks_are_kept_when_wrapping():
-    text = wrapped_lines_under_label("Thinking", "First, her role.\nThen, the laptop rules.")
-
-    assert text == "  Thinking:    First, her role.\n               Then, the laptop rules."
-
-
-def test_first_exception_inside_finds_an_error_two_groups_deep():
-    """How an error raised inside the MCP client's block arrives."""
-    error = NoToolCallError("end_turn", "")
-    wrapped = ExceptionGroup("outer", [ExceptionGroup("inner", [error])])
-
-    found = first_exception_inside(wrapped)
-
-    assert found is error
-
-
-def test_first_exception_inside_finds_an_error_one_group_deep():
-    """How a refused connection arrives."""
-    error = ConnectionRefusedError("All connection attempts failed")
-
-    found = first_exception_inside(ExceptionGroup("only", [error]))
-
-    assert found is error

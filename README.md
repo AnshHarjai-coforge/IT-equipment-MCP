@@ -165,13 +165,18 @@ src/it_equipment/eligibility.py   the eligibility rules: every policy decision i
 src/it_equipment/review_queue.py  review flags, and the queue file they are appended to
 src/it_equipment/config.py        Settings, and the loader that layers them
 src/it_equipment/server.py        the MCP server and its tools
-src/it_equipment/agent_tools.py   MCP tools into Claude tools, and tool results into text
-src/it_equipment/prompts.py       what the agent tells the model
-src/it_equipment/agent.py         the agent: the model call, the tool call, the printed trace
+src/it_equipment/agent/           the agent, one job per module:
+    __main__.py                   what "python -m it_equipment.agent" runs: loads .env, then main()
+    cli.py                        main(): opens both clients, runs the agent, reports failures
+    mcp_bridge.py                 MCP tools into Claude tools, and tool results into text
+    prompts.py                    what the agent tells the model
+    first_call.py                 the model call and the first tool call
+    trace.py                      the trace's steps, and how everything is printed
 scripts/check_connection.py       connects as a client and calls each tool
 config.toml                       application settings
 .env.example                      the template for .env, which holds the Foundry key
 tests/                            unit tests, run against the plain functions
+tests/agent/                      the agent's tests, one file per module
 docs/requirements.md              requirements and policy rules (deliverable 1)
 data/employees.json               mock employee records
 data/policies.json                mock policy rules, one record per role
@@ -183,5 +188,5 @@ review-queue/                     review flags written by the server (git-ignore
 
 Business logic lives in plain functions and classes with no MCP imports: `server.py` is the
 only module on the server side that imports `mcp`, and it is a thin wrapper over those plain
-functions, so the logic stays directly testable. On the agent side, `agent_tools.py` is the
-only module that imports `mcp`.
+functions, so the logic stays directly testable. On the agent side, `agent/mcp_bridge.py` is
+the only module that imports `mcp`.

@@ -11,7 +11,7 @@ import pytest
 from mcp import Client
 from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool, ToolAnnotations
 
-from it_equipment.agent_tools import (
+from it_equipment.agent.mcp_bridge import (
     THOUGHT_FIELD,
     arguments_without_thought,
     claude_tool_from_mcp_tool,
