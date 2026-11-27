@@ -1,9 +1,10 @@
 """What "python -m it_equipment.agent" runs: load .env, then the agent.
 
-Run it in a second terminal, with the server already running:
+Run it in a second terminal, with the server already running, giving the
+sender's id and then their words in quotes:
 
-    python -m it_equipment.server   # terminal 1
-    python -m it_equipment.agent    # terminal 2
+    python -m it_equipment.server                    # terminal 1
+    python -m it_equipment.agent E001 "I need a second monitor."   # terminal 2
 
 It reads the Foundry key, the resource name and the deployment name from .env
 by itself. Never source .env into a terminal: Claude Code reads
