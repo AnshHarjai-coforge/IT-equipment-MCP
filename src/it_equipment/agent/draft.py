@@ -95,6 +95,21 @@ class Draft:
     # The flag the model recorded; None unless escalated.
     flag_id: str | None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Return the six fields as JSON-ready values, in the schema's order.
+
+        This is how reflection is shown the draft: as the same JSON the model
+        wrote it in.
+        """
+        return {
+            "decision": self.decision,
+            "item": self.item,
+            "answered": self.answered,
+            "message": self.message,
+            "reason": self.reason,
+            "flag_id": self.flag_id,
+        }
+
 
 class InvalidDraftError(Exception):
     """Raised when the model's final reply cannot be read as a draft.

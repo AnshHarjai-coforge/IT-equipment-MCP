@@ -156,6 +156,18 @@ def test_fields_that_are_not_an_object_raise_invalid_draft_error():
         draft_from_fields("approved")
 
 
+def test_a_draft_serialises_to_the_json_it_was_read_from():
+    draft = draft_from_fields(dict(APPROVED_REPLACEMENT))
+
+    assert draft.to_dict() == APPROVED_REPLACEMENT
+
+
+def test_a_drafts_fields_come_out_in_the_schemas_order():
+    draft = draft_from_fields(dict(APPROVED_REPLACEMENT))
+
+    assert list(draft.to_dict().keys()) == DRAFT_FIELDS
+
+
 def test_the_schema_requires_every_field_and_allows_no_others():
     assert list(DRAFT_SCHEMA["properties"].keys()) == DRAFT_FIELDS
     assert DRAFT_SCHEMA["required"] == DRAFT_FIELDS
