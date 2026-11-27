@@ -148,7 +148,7 @@ def test_a_run_that_matches_its_case_passes():
     assert case_run == CaseRun(
         case_id="5-not-processed-unknown-id",
         run_number=1,
-        grade=RunGrade(problems=[], warnings=[]),
+        grade=RunGrade(problems=[]),
         model_calls=2,
     )
 
@@ -234,13 +234,13 @@ def test_each_run_is_printed_as_heading_trace_then_result(capsys):
 
 
 def test_one_failed_run_means_not_every_run_passed():
-    passed = CaseRun("1-approved-replacement", 1, RunGrade(problems=[], warnings=[]), 3)
-    failed = CaseRun("1-approved-replacement", 2, RunGrade(problems=["A problem."], warnings=[]), 3)
+    passed = CaseRun("1-approved-replacement", 1, RunGrade(problems=[]), 3)
+    failed = CaseRun("1-approved-replacement", 2, RunGrade(problems=["A problem."]), 3)
 
     assert every_run_passed([passed, failed]) is False
 
 
-def test_runs_with_only_warnings_all_pass():
-    warned = CaseRun("8-escalated-injection", 1, RunGrade(problems=[], warnings=["A warning."]), 4)
+def test_runs_with_no_problems_all_pass():
+    passed = CaseRun("8-escalated-injection", 1, RunGrade(problems=[]), 4)
 
-    assert every_run_passed([warned]) is True
+    assert every_run_passed([passed]) is True

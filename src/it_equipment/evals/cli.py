@@ -100,9 +100,7 @@ async def run_case(
         # the error shown, and the runner carries on with the next one, so a
         # paid run never loses the results already paid for. The SDK's
         # message is the status and Foundry's reply, never the key.
-        grade = RunGrade(
-            problems=[f"The model call failed: {type(error).__name__}: {error}"], warnings=[]
-        )
+        grade = RunGrade(problems=[f"The model call failed: {type(error).__name__}: {error}"])
 
     return CaseRun(
         case_id=case.case_id,

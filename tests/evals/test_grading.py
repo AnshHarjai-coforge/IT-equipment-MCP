@@ -105,10 +105,10 @@ def run(trace: list[TraceStep], draft: Draft | None, stopped_because: str = "") 
     return LoopResult(trace=trace, draft=draft, stopped_because=stopped_because)
 
 
-def test_a_run_that_matches_its_case_has_no_problems_or_warnings():
+def test_a_run_that_matches_its_case_has_no_problems():
     grade = grade_run(SOFIAS_CASE, run(sofias_steps(), SOFIAS_DRAFT))
 
-    assert grade == RunGrade(problems=[], warnings=[])
+    assert grade == RunGrade(problems=[])
 
 
 def test_a_different_decision_is_a_problem():
@@ -264,25 +264,13 @@ def test_a_flag_id_the_run_never_received_is_a_problem():
     ]
 
 
-def test_a_paraphrased_flag_request_is_a_warning_not_a_problem():
-    """As in branch 6's live run 8, where the typos were corrected."""
-    trace = sofias_steps()
-    trace[2] = flag_step(3, "E003", "Dropped laptop, cracked screen; wants a replacement.", FLAG_ID)
-
-    grade = grade_run(SOFIAS_CASE, run(trace, SOFIAS_DRAFT))
-
-    assert grade == RunGrade(
-        problems=[], warnings=["Action 3's request is not the employee's words exactly."]
-    )
-
-
-def test_a_grade_with_only_warnings_passes():
-    grade = RunGrade(problems=[], warnings=["A warning."])
+def test_a_grade_with_no_problems_passes():
+    grade = RunGrade(problems=[])
 
     assert grade.passed() is True
 
 
 def test_a_grade_with_a_problem_fails():
-    grade = RunGrade(problems=["A problem."], warnings=[])
+    grade = RunGrade(problems=["A problem."])
 
     assert grade.passed() is False

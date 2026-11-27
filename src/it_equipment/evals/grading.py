@@ -13,10 +13,6 @@ In plain words, a run passes when all four of these hold:
 A run that ends without a draft fails the first check, whatever Python did
 next: the agent reached no decision of its own.
 
-One finding is a warning rather than a failure: a flag whose request is not
-the employee's words exactly. The tool asks for their own words, but the
-outcome is the same either way.
-
 The message text is not graded: judging it is reflection's job (branch 7).
 Everything here is pure. It reads a case and a loop's result and returns
 sentences, so each check is tested with literal results and no model.
@@ -35,13 +31,12 @@ FLAG_TOOL = "flag_for_human_review"
 
 @dataclass(frozen=True)
 class RunGrade:
-    """What grading found in one run: the problems that fail it, and the warnings that do not."""
+    """What grading found in one run: the problems that fail it, in check order."""
 
     problems: list[str]
-    warnings: list[str]
 
     def passed(self) -> bool:
-        """Return True when the run has no problems. Warnings do not fail a run."""
+        """Return True when the run has no problems."""
         return len(self.problems) == 0
 
 
@@ -53,9 +48,7 @@ def grade_run(case: EvalCase, result: LoopResult) -> RunGrade:
     problems.extend(forbidden_call_problems(case.forbidden_calls, result.trace))
     problems.extend(flag_problems(case.expected.flagged, result.draft, result.trace))
 
-    warnings = flag_request_warnings(case.request.text, result.trace)
-
-    return RunGrade(problems=problems, warnings=warnings)
+    return RunGrade(problems=problems)
 
 
 def draft_problems(
@@ -136,24 +129,6 @@ def flag_problems(expected_flagged: bool, draft: Draft | None, trace: list[Trace
         )
 
     return problems
-
-
-def flag_request_warnings(request_text: str, trace: list[TraceStep]) -> list[str]:
-    """Return a warning for each flag whose request is not the employee's words exactly."""
-    warnings = []
-    for step in trace:
-        if step.tool_name != FLAG_TOOL:
-            continue
-
-        # The server's schema requires a request, so a call without one was
-        # refused and is already an error; there is nothing to compare.
-        if "request" not in step.arguments:
-            continue
-
-        if step.arguments["request"] != request_text:
-            warnings.append(f"Action {step.number}'s request is not the employee's words exactly.")
-
-    return warnings
 
 
 def steps_matching(call: ToolCall, trace: list[TraceStep]) -> list[TraceStep]:

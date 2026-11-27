@@ -168,8 +168,8 @@ it builds one inside its own process, from the same data files, with the review 
 temporary folder that is deleted at the end, so the real `review-queue/` is never touched.
 
 For each run it prints a heading naming the case, the agent's trace exactly as
-`python -m it_equipment.agent` prints it, and a `Result`: passed or failed, the problems and
-warnings, and how many calls to the model the run made. A run passes when:
+`python -m it_equipment.agent` prints it, and a `Result`: passed or failed, the problems, and
+how many calls to the model the run made. A run passes when:
 
 - the draft's decision, item and answered are the case's, exactly
 - every required call was made (other calls, in any order, are allowed)
@@ -177,8 +177,7 @@ warnings, and how many calls to the model the run made. A run passes when:
 - one flag was recorded when the case expects one, none otherwise, and any flag id in the draft
   is one the run received
 
-The message text is not graded. A flag whose request is not the employee's words exactly is a
-warning, not a failure. At the end a scorecard gives one row per case and repeats every failed
+The message text is not graded. At the end a scorecard gives one row per case and repeats every failed
 run's problems. The runner exits with status 1 if any run failed. Each case takes about two to
 four calls to the model, so one pass over the eight is roughly 20 to 30 paid calls.
 
