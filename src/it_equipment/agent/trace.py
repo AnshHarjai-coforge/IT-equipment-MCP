@@ -23,10 +23,7 @@ import textwrap
 from dataclasses import dataclass
 from typing import Any
 
-from anthropic.types import Message, ToolUseBlock
-
 from it_equipment.agent.draft import Draft
-from it_equipment.agent.mcp_bridge import arguments_without_thought, thought_from_arguments
 from it_equipment.agent.request import EquipmentRequest
 
 # Where every printed value starts, so the values line up in one column. It is
@@ -108,58 +105,6 @@ def print_python_flagged(flag_id: str) -> None:
 def print_python_flag_failed(error_text: str) -> None:
     """Print the line saying Python could not send the request to a person, and the tool's error."""
     print(wrapped_line(f"Python could not send the request to a person: {error_text}"))
-
-
-def print_request(request_text: str) -> None:
-    """Print the request the model is about to be given."""
-    print("Request")
-    print(
-        textwrap.fill(request_text, width=LINE_WIDTH, initial_indent="  ", subsequent_indent="  ")
-    )
-
-
-def print_model_reply(reply: Message) -> None:
-    """Print what the model wrote in its reply: its thinking summary and its text.
-
-    The reply's tool calls are printed separately, each with what came of it.
-    """
-    print()
-    print(f"Model reply  (stop reason: {reply.stop_reason})")
-
-    for block in reply.content:
-        if block.type == "thinking":
-            # Empty when the API sends no summary, and then there is nothing
-            # to show.
-            if block.thinking != "":
-                print(wrapped_lines_under_label("Thinking", block.thinking))
-        elif block.type == "redacted_thinking":
-            # Thinking the API sends back only in encrypted form. Saying so
-            # keeps the trace honest about a part it cannot show.
-            print(lines_under_label("Thinking", "(redacted by the API, so it cannot be shown)"))
-        elif block.type == "text":
-            print(wrapped_lines_under_label("Text", block.text))
-
-
-def print_tool_calls_not_run(tool_calls: list[ToolUseBlock]) -> None:
-    """Print every tool call after the first, each marked as not run.
-
-    The model may ask for several tools in one reply. Only the first is run
-    for now, but the rest are still shown in full, so the trace hides nothing
-    the model asked for.
-    """
-    position = 2
-    for tool_call in tool_calls[1:]:
-        print()
-        print(
-            f"Tool call {position} of {len(tool_calls)}  (not run: this branch runs only the first)"
-        )
-        print_thought_and_action(
-            position,
-            thought_from_arguments(tool_call.input),
-            tool_call.name,
-            arguments_without_thought(tool_call.input),
-        )
-        position = position + 1
 
 
 def print_thought_and_action(
