@@ -50,10 +50,6 @@ HARDCODED_REQUEST = (
     'Employee E001 sent this request: "My laptop is 4 years old and slow, can I get a replacement?"'
 )
 
-# The most the model may write in one reply. Its thinking counts towards this
-# as well, which is why it is far more than a reply itself needs.
-MAX_TOKENS = 16000
-
 # Opus 5 thinks before it replies whether or not this is sent, and adaptive is
 # what it does by default. "summarized" asks the API to send back a summary of
 # that thinking, so the trace can show it; without it the text is left out.
@@ -102,6 +98,7 @@ async def run_first_tool_call(
     model_client: AsyncAnthropicFoundry,
     mcp_client: Client,
     model: str,
+    max_tokens: int,
     request_text: str,
 ) -> TraceStep:
     """Send the request to the model once, run the first tool it asks for, and return that step.
@@ -111,8 +108,8 @@ async def run_first_tool_call(
     for, which are shown but not run. The result is printed, not sent back to
     the model.
 
-    Takes the model's name rather than all of the settings, because that is
-    the only setting it uses.
+    Takes the model's name and the reply limit rather than all of the
+    settings, because those are the only two settings it uses.
 
     Raises NoToolCallError if the reply holds no tool call to run.
     """
@@ -125,7 +122,7 @@ async def run_first_tool_call(
     # this SDK speaks no longer has them.
     reply = await model_client.messages.create(
         model=model,
-        max_tokens=MAX_TOKENS,
+        max_tokens=max_tokens,
         system=SYSTEM_PROMPT,
         thinking=THINKING,
         tools=tools,
@@ -362,7 +359,11 @@ async def main() -> None:
         async with AsyncAnthropicFoundry() as model_client:
             async with connect_to_server(url) as mcp_client:
                 await run_first_tool_call(
-                    model_client, mcp_client, settings.model, HARDCODED_REQUEST
+                    model_client,
+                    mcp_client,
+                    settings.model,
+                    settings.max_tokens,
+                    HARDCODED_REQUEST,
                 )
     # "except*" for the reason check_connection.py gives: the MCP client wraps
     # a failure in a group, often a group inside a group, and "except*" looks

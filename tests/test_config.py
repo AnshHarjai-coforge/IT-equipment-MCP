@@ -32,6 +32,7 @@ ENVIRONMENT_VARIABLES = [
     "MCP_REVIEW_QUEUE_FILE",
     "ANTHROPIC_MODEL",
     "AGENT_MAX_STEPS",
+    "AGENT_MAX_TOKENS",
 ]
 
 
@@ -216,6 +217,7 @@ def test_the_agent_settings_have_defaults(tmp_path):
 
     assert settings.model == "claude-opus-5"
     assert settings.max_steps == 10
+    assert settings.max_tokens == 16000
 
 
 def test_the_agent_settings_come_from_the_config_file(tmp_path):
@@ -225,6 +227,7 @@ def test_the_agent_settings_come_from_the_config_file(tmp_path):
         [agent]
         model = "my-opus-deployment"
         max_steps = 6
+        max_tokens = 8000
         """,
     )
 
@@ -232,6 +235,7 @@ def test_the_agent_settings_come_from_the_config_file(tmp_path):
 
     assert settings.model == "my-opus-deployment"
     assert settings.max_steps == 6
+    assert settings.max_tokens == 8000
 
 
 def test_the_environment_beats_the_config_file_for_the_model(tmp_path, monkeypatch):
@@ -260,6 +264,16 @@ def test_max_steps_from_the_environment_becomes_a_number(tmp_path, monkeypatch):
     assert isinstance(settings.max_steps, int)
 
 
+def test_max_tokens_from_the_environment_becomes_a_number(tmp_path, monkeypatch):
+    """The environment hands over text, but the SDK needs an integer."""
+    monkeypatch.setenv("AGENT_MAX_TOKENS", "8000")
+
+    settings = load_settings(tmp_path / "absent.toml")
+
+    assert settings.max_tokens == 8000
+    assert isinstance(settings.max_tokens, int)
+
+
 def test_an_absolute_data_path_is_left_alone():
     resolved = resolve_path("/etc/employees.json", Path("/somewhere/else"))
 
@@ -281,3 +295,4 @@ def test_the_committed_config_file_loads():
     assert settings.review_queue_file == REPO_ROOT / "review-queue" / "review_queue.jsonl"
     assert settings.model == "claude-opus-5"
     assert settings.max_steps == 10
+    assert settings.max_tokens == 16000

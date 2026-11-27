@@ -56,6 +56,9 @@ class Settings:
     # The most calls to the model the agent may make while handling one
     # request. One call is one step.
     max_steps: int = 10
+    # The most the model may write in one reply. Its thinking counts towards
+    # this as well, which is why it is far more than a reply itself needs.
+    max_tokens: int = 16000
 
     def mcp_url(self) -> str:
         """Return the address a client connects to.
@@ -106,6 +109,7 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
     review_queue_file = defaults.review_queue_file
     model = defaults.model
     max_steps = defaults.max_steps
+    max_tokens = defaults.max_tokens
 
     # Layer 2: the configuration file. A missing file is not an error, because
     # the defaults above are already a complete set of settings.
@@ -148,6 +152,9 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
             if "max_steps" in agent:
                 max_steps = agent["max_steps"]
 
+            if "max_tokens" in agent:
+                max_tokens = agent["max_tokens"]
+
     # Layer 3: environment variables, which is how a container overrides a
     # setting without the image being rebuilt.
     if "MCP_HOST" in os.environ:
@@ -181,6 +188,10 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
         # Text from the environment, so it becomes a number the way MCP_PORT does.
         max_steps = int(os.environ["AGENT_MAX_STEPS"])
 
+    if "AGENT_MAX_TOKENS" in os.environ:
+        # Text as well, so it is converted the same way.
+        max_tokens = int(os.environ["AGENT_MAX_TOKENS"])
+
     return Settings(
         host=host,
         port=port,
@@ -190,4 +201,5 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
         review_queue_file=review_queue_file,
         model=model,
         max_steps=max_steps,
+        max_tokens=max_tokens,
     )

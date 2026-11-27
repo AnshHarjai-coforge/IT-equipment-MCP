@@ -128,7 +128,7 @@ class FakeMcpClient:
 def run(model_client: FakeModelClient, mcp_client: FakeMcpClient) -> TraceStep:
     """Run the first tool call for the hardcoded request, as main() does."""
     return asyncio.run(
-        run_first_tool_call(model_client, mcp_client, "claude-opus-5", HARDCODED_REQUEST)
+        run_first_tool_call(model_client, mcp_client, "claude-opus-5", 16000, HARDCODED_REQUEST)
     )
 
 
@@ -147,10 +147,24 @@ def test_the_model_passed_in_is_the_one_called():
     mcp_client = FakeMcpClient(priya_found())
 
     asyncio.run(
-        run_first_tool_call(model_client, mcp_client, "my-opus-deployment", HARDCODED_REQUEST)
+        run_first_tool_call(
+            model_client, mcp_client, "my-opus-deployment", 16000, HARDCODED_REQUEST
+        )
     )
 
     assert model_client.messages.requests[0]["model"] == "my-opus-deployment"
+
+
+def test_the_reply_limit_passed_in_is_the_one_sent():
+    """max_tokens from the settings."""
+    model_client = FakeModelClient(model_reply([look_up_priya()], "tool_use"))
+    mcp_client = FakeMcpClient(priya_found())
+
+    asyncio.run(
+        run_first_tool_call(model_client, mcp_client, "claude-opus-5", 4000, HARDCODED_REQUEST)
+    )
+
+    assert model_client.messages.requests[0]["max_tokens"] == 4000
 
 
 def test_the_request_is_sent_as_one_user_message():

@@ -138,6 +138,7 @@ changes one without the image being rebuilt:
 | `MCP_REVIEW_QUEUE_FILE` | where review flags are appended | `review-queue/review_queue.jsonl` |
 | `ANTHROPIC_MODEL` | the Foundry deployment the agent calls | `claude-opus-5` |
 | `AGENT_MAX_STEPS` | the most model calls for one request | `10` |
+| `AGENT_MAX_TOKENS` | the most the model may write in one reply, thinking included | `16000` |
 
 The Foundry key and resource name are not settings: the `anthropic` SDK reads them from the
 environment by itself, so they never appear in the `Settings` object.

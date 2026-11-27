@@ -26,3 +26,5 @@ review_queue = "review-queue/review_queue.jsonl"   # MCP_REVIEW_QUEUE_FILE
 model = "claude-opus-5"   # ANTHROPIC_MODEL
 # The most calls to the model the agent may make while handling one request.
 max_steps = 10            # AGENT_MAX_STEPS
+# The most the model may write in one reply, its thinking included.
+max_tokens = 16000        # AGENT_MAX_TOKENS
