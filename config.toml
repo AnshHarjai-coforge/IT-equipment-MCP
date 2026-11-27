@@ -19,3 +19,12 @@ policies = "data/policies.json"     # MCP_POLICIES_FILE
 # Where flag_for_human_review appends each flag, one line of JSON per flag.
 # The folder is created on the first flag and is git-ignored.
 review_queue = "review-queue/review_queue.jsonl"   # MCP_REVIEW_QUEUE_FILE
+
+[agent]
+# The model the agent calls. On Microsoft Foundry this is the deployment name,
+# which is the model id unless the deployment was named otherwise.
+model = "claude-opus-5"   # ANTHROPIC_MODEL
+# The most calls to the model the agent may make while handling one request.
+max_steps = 10            # AGENT_MAX_STEPS
+# The most the model may write in one reply, its thinking included.
+max_tokens = 16000        # AGENT_MAX_TOKENS

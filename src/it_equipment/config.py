@@ -14,6 +14,12 @@ Settings are built up in three layers, each one overriding the layer before:
 This module is the only place in the package that reads the configuration file
 or the environment. Everything else is handed a Settings object, so no other
 function depends on what happens to be set outside the program.
+
+There are two deliberate exceptions, both to do with the agent's secrets. The
+agent's entry point loads .env into the environment with python-dotenv, and
+the anthropic SDK's Foundry client reads its key and resource name from the
+environment by itself. That way the key never becomes a field of Settings, an
+object that can end up printed.
 """
 
 import os
@@ -44,6 +50,15 @@ class Settings:
     # Where review flags are appended. Its folder is git-ignored, because the
     # flags are written while the server runs rather than authored as data.
     review_queue_file: Path = REPO_ROOT / "review-queue" / "review_queue.jsonl"
+    # The model the agent calls. On Microsoft Foundry this is the deployment
+    # name, which is the model id unless the deployment was named otherwise.
+    model: str = "claude-opus-5"
+    # The most calls to the model the agent may make while handling one
+    # request. One call is one step.
+    max_steps: int = 10
+    # The most the model may write in one reply. Its thinking counts towards
+    # this as well, which is why it is far more than a reply itself needs.
+    max_tokens: int = 16000
 
     def mcp_url(self) -> str:
         """Return the address a client connects to.
@@ -92,6 +107,9 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
     employees_file = defaults.employees_file
     policies_file = defaults.policies_file
     review_queue_file = defaults.review_queue_file
+    model = defaults.model
+    max_steps = defaults.max_steps
+    max_tokens = defaults.max_tokens
 
     # Layer 2: the configuration file. A missing file is not an error, because
     # the defaults above are already a complete set of settings.
@@ -125,6 +143,18 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
             if "review_queue" in data:
                 review_queue_file = resolve_path(data["review_queue"], config_file.parent)
 
+        if "agent" in config:
+            agent = config["agent"]
+
+            if "model" in agent:
+                model = agent["model"]
+
+            if "max_steps" in agent:
+                max_steps = agent["max_steps"]
+
+            if "max_tokens" in agent:
+                max_tokens = agent["max_tokens"]
+
     # Layer 3: environment variables, which is how a container overrides a
     # setting without the image being rebuilt.
     if "MCP_HOST" in os.environ:
@@ -148,6 +178,20 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
     if "MCP_REVIEW_QUEUE_FILE" in os.environ:
         review_queue_file = resolve_path(os.environ["MCP_REVIEW_QUEUE_FILE"], config_file.parent)
 
+    # No MCP_ prefix on this one: ANTHROPIC_MODEL is the name Anthropic's own
+    # tools use, so it sits in .env beside the two Foundry variables the SDK
+    # reads for itself.
+    if "ANTHROPIC_MODEL" in os.environ:
+        model = os.environ["ANTHROPIC_MODEL"]
+
+    if "AGENT_MAX_STEPS" in os.environ:
+        # Text from the environment, so it becomes a number the way MCP_PORT does.
+        max_steps = int(os.environ["AGENT_MAX_STEPS"])
+
+    if "AGENT_MAX_TOKENS" in os.environ:
+        # Text as well, so it is converted the same way.
+        max_tokens = int(os.environ["AGENT_MAX_TOKENS"])
+
     return Settings(
         host=host,
         port=port,
@@ -155,4 +199,7 @@ def load_settings(config_file: str | Path | None = None) -> Settings:
         employees_file=employees_file,
         policies_file=policies_file,
         review_queue_file=review_queue_file,
+        model=model,
+        max_steps=max_steps,
+        max_tokens=max_tokens,
     )
