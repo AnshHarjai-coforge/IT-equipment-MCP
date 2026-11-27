@@ -14,6 +14,12 @@ Settings are built up in three layers, each one overriding the layer before:
 This module is the only place in the package that reads the configuration file
 or the environment. Everything else is handed a Settings object, so no other
 function depends on what happens to be set outside the program.
+
+There are two deliberate exceptions, both to do with the agent's secrets. The
+agent's entry point loads .env into the environment with python-dotenv, and
+the anthropic SDK's Foundry client reads its key and resource name from the
+environment by itself. That way the key never becomes a field of Settings, an
+object that can end up printed.
 """
 
 import os
