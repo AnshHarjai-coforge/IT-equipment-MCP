@@ -46,10 +46,7 @@ class PolicyCheck:
 def check_reviewed_draft(employee_id: str, trace: list[TraceStep], draft: Draft) -> PolicyCheck:
     """Return whether the reviewed draft stands, checked against this run's tool results."""
     flag_step = first_flag_step_for(employee_id, trace)
-
-    flag_id = None
-    if flag_step is not None:
-        flag_id = json.loads(flag_step.observation)["flag_id"]
+    flag_id = recorded_flag_id(employee_id, trace)
 
     if flag_step is not None and draft.decision != "escalated":
         return PolicyCheck(
@@ -159,6 +156,19 @@ def not_processed_check(employee_id: str, trace: list[TraceStep]) -> PolicyCheck
         ),
         flag_id=None,
     )
+
+
+def recorded_flag_id(employee_id: str, trace: list[TraceStep]) -> str | None:
+    """Return the id of the first flag this run recorded for the employee, or None if none.
+
+    Read from the tool's own result, so the id is one the server really made.
+    Python uses it rather than making a second flag for the same request.
+    """
+    flag_step = first_flag_step_for(employee_id, trace)
+    if flag_step is None:
+        return None
+
+    return json.loads(flag_step.observation)["flag_id"]
 
 
 def first_flag_step_for(employee_id: str, trace: list[TraceStep]) -> TraceStep | None:

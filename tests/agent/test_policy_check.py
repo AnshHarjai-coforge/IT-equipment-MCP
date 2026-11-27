@@ -8,7 +8,7 @@ import json
 from dataclasses import replace
 
 from it_equipment.agent.draft import Draft
-from it_equipment.agent.policy_check import PolicyCheck, check_reviewed_draft
+from it_equipment.agent.policy_check import PolicyCheck, check_reviewed_draft, recorded_flag_id
 from it_equipment.agent.trace import TraceStep
 
 FLAG_ID = "c242852e-a35e-4dc3-b1bc-c929d81a827f"
@@ -259,3 +259,13 @@ def test_not_processed_fails_when_the_refused_lookup_was_for_another_id():
     check = check_reviewed_draft("E001", [lookup], NOT_PROCESSED)
 
     assert check.passed is False
+
+
+def test_the_recorded_flag_id_is_the_first_flag_for_the_employee():
+    trace = [flag_for(1, "E002"), flag_for(2, "E001")]
+
+    assert recorded_flag_id("E001", trace) == FLAG_ID
+
+
+def test_no_flag_for_the_employee_gives_none():
+    assert recorded_flag_id("E001", [priyas_check()]) is None
