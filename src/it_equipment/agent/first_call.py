@@ -10,7 +10,7 @@ taken apart, in mcp_bridge.py.
 """
 
 from anthropic import AsyncAnthropicFoundry
-from anthropic.types import Message, ToolUseBlock
+from anthropic.types import Message
 
 from it_equipment.agent.mcp_bridge import (
     Client,
@@ -20,6 +20,7 @@ from it_equipment.agent.mcp_bridge import (
     thought_from_arguments,
 )
 from it_equipment.agent.prompts import SYSTEM_PROMPT
+from it_equipment.agent.react_loop import tool_calls_in_reply
 from it_equipment.agent.trace import (
     TraceStep,
     print_model_reply,
@@ -121,16 +122,6 @@ async def run_first_tool_call(
     print_tool_calls_not_run(tool_calls)
 
     return step
-
-
-def tool_calls_in_reply(reply: Message) -> list[ToolUseBlock]:
-    """Return the tool calls in a reply, in the order the model asked for them."""
-    tool_calls = []
-    for block in reply.content:
-        if block.type == "tool_use":
-            tool_calls.append(block)
-
-    return tool_calls
 
 
 def text_in_reply(reply: Message) -> str:
