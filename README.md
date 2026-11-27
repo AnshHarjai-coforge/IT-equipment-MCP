@@ -21,8 +21,9 @@ All four tools are served over MCP and confirmed working end to end:
 - `flag_for_human_review`: sends a request to a person, by appending a flag with the reason to
   the review queue
 
-The agent connects to the server as an MCP client and makes its first tool call, for one
-hardcoded request. The ReAct loop and reflection are still to come.
+The agent connects to the server as an MCP client and runs an explicit ReAct loop over those
+tools for the request it is given, printing every Thought, Action and Observation, until the
+model writes its draft decision. Reflection on that draft is still to come.
 
 ## Requirements
 
@@ -103,22 +104,35 @@ The agent loads `.env` by itself when it starts. **Never `source .env` into a te
 Claude Code also reads `ANTHROPIC_MODEL`, and would take the deployment name as its own model.
 A variable already set in the environment wins over `.env`.
 
-With the server running in one terminal, run the agent in a second:
+With the server running in one terminal, run the agent in a second. Give it the id of the
+employee who sent the request, then their words in quotes:
 
 ```bash
 python -m it_equipment.server   # terminal 1
-python -m it_equipment.agent    # terminal 2
+python -m it_equipment.agent E001 "My laptop is 4 years old and slow, can I get a replacement?"   # terminal 2
 ```
 
-For now it sends one hardcoded request, from Priya (E001), to the model, and runs the first
-tool the model asks for. Everything the model does is printed in full: the request, a summary
-of the model's thinking, any text it writes, each tool call it asks for with its Thought and
-Action, and the Observation that came back. A tool call it asks for beyond the first is
-printed and marked as not run. Each call to the model is a paid call, so the tests replace the
-model with a fake and never make one.
+The id is passed separately because it comes from whoever sent the request, never from the
+text. `python -m it_equipment.agent --help` shows the usage.
 
-If the server isn't running, if the model makes no tool call, or if Foundry refuses the call,
-the agent says so in a line or two and exits with status 1.
+The agent runs a ReAct loop. Each pass is one call to the model, which either asks for tools
+or writes its draft decision. Every tool call carries the model's reason for it, so everything
+is printed in full as it happens:
+
+- `User query`: who sent the request, and their words exactly as sent
+- `Step 1: ReAct loop`: each Thought, Action and Observation, numbered across the whole loop;
+  the Observation is the tool's result exactly as the model is given it
+- `Draft after the ReAct loop`: the decision (approved, denied, escalated or not processed),
+  the item, which verdict it relays, the message to the employee, the reason, and the flag id
+
+If the loop ends without a draft (the model refuses, is cut off, or reaches the limit of
+`max_steps` calls), the agent says why in one line, and Python sends the request to a person
+with `flag_for_human_review`, printing the flag's id. Each call to the model is a paid call, so
+the tests replace the model with a scripted fake and never make one.
+
+If the server isn't running, or if Foundry refuses the call, the agent says so in a line or two
+and exits with status 1. A missing argument or a blank request prints the usage and exits with
+status 2.
 
 ## Configuration
 
@@ -165,13 +179,21 @@ src/it_equipment/eligibility.py   the eligibility rules: every policy decision i
 src/it_equipment/review_queue.py  review flags, and the queue file they are appended to
 src/it_equipment/config.py        Settings, and the loader that layers them
 src/it_equipment/server.py        the MCP server and its tools
-src/it_equipment/agent_tools.py   MCP tools into Claude tools, and tool results into text
-src/it_equipment/prompts.py       what the agent tells the model
-src/it_equipment/agent.py         the agent: the model call, the tool call, the printed trace
+src/it_equipment/agent/           the agent, one job per module:
+    __main__.py                   what "python -m it_equipment.agent" runs: loads .env, then main()
+    cli.py                        the command line: reads the request, opens both clients
+    request.py                    a request: the sender's id and their words, as one message
+    prompts.py                    what the agent tells the model
+    handler.py                    one request start to finish; Python escalates if no draft
+    react_loop.py                 the ReAct loop: model calls and tool calls until a draft
+    draft.py                      the draft decision, its schema, and reading it back
+    mcp_bridge.py                 MCP tools into Claude tools, and tool results into text
+    trace.py                      the trace's steps, and how everything is printed
 scripts/check_connection.py       connects as a client and calls each tool
 config.toml                       application settings
 .env.example                      the template for .env, which holds the Foundry key
 tests/                            unit tests, run against the plain functions
+tests/agent/                      the agent's tests, one file per module
 docs/requirements.md              requirements and policy rules (deliverable 1)
 data/employees.json               mock employee records
 data/policies.json                mock policy rules, one record per role
@@ -183,5 +205,5 @@ review-queue/                     review flags written by the server (git-ignore
 
 Business logic lives in plain functions and classes with no MCP imports: `server.py` is the
 only module on the server side that imports `mcp`, and it is a thin wrapper over those plain
-functions, so the logic stays directly testable. On the agent side, `agent_tools.py` is the
-only module that imports `mcp`.
+functions, so the logic stays directly testable. On the agent side, `agent/mcp_bridge.py` is
+the only module that imports `mcp`.
