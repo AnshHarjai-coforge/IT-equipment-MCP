@@ -1,9 +1,10 @@
-"""The MCP server: the only module in the package that imports mcp.
+"""The MCP server: the four tools, and the edge between the domain code and the protocol.
 
 The business logic stays in models.py, repository.py, eligibility.py and
 review_queue.py, which know nothing about MCP. This module is the edge: it converts what those
 modules produce into what the protocol needs, and converts their errors into
-the error the protocol understands.
+the error the protocol understands. The only other modules that import mcp
+are on the client side: agent/mcp_bridge.py and evals/cli.py.
 
 Two conversions happen here, and nowhere else:
 
@@ -293,8 +294,9 @@ def build_server(
 
         Args:
             employee_id: The employee's id (e.g. E001)
-            request: The employee's request in their own words (e.g. I dropped
-                my laptop and cracked the screen)
+            request: The employee's request exactly as they sent it, word for
+                word, typos included, never a summary (e.g. I dropped my laptop
+                and cracked the screen)
             reason: Why a person must decide, in one sentence (e.g. The damage
                 cannot be confirmed from the records)
         """

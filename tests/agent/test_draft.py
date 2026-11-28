@@ -16,7 +16,9 @@ from it_equipment.agent.draft import (
     DRAFT_SCHEMA,
     Draft,
     InvalidDraftError,
+    draft_from_fields,
     draft_from_reply,
+    text_of_reply,
 )
 
 # Priya's laptop replacement, as the model would draft it.
@@ -129,6 +131,41 @@ def test_an_unknown_answered_value_raises_invalid_draft_error():
 
     with pytest.raises(InvalidDraftError, match="'both'"):
         draft_from_reply(reply)
+
+
+def test_the_text_of_a_reply_joins_its_text_blocks_and_leaves_out_thinking():
+    thinking = ThinkingBlock(type="thinking", thinking="", signature="sig")
+    reply = reply_with_text('{"decision": ')
+    reply.content.insert(0, thinking)
+    reply.content.append(TextBlock(type="text", text='"approved"}'))
+
+    text = text_of_reply(reply)
+
+    assert text == '{"decision": "approved"}'
+
+
+def test_fields_already_read_from_json_become_a_draft():
+    draft = draft_from_fields(dict(APPROVED_REPLACEMENT))
+
+    assert draft.decision == "approved"
+    assert draft.answered == "replacement"
+
+
+def test_fields_that_are_not_an_object_raise_invalid_draft_error():
+    with pytest.raises(InvalidDraftError, match="not an object"):
+        draft_from_fields("approved")
+
+
+def test_a_draft_serialises_to_the_json_it_was_read_from():
+    draft = draft_from_fields(dict(APPROVED_REPLACEMENT))
+
+    assert draft.to_dict() == APPROVED_REPLACEMENT
+
+
+def test_a_drafts_fields_come_out_in_the_schemas_order():
+    draft = draft_from_fields(dict(APPROVED_REPLACEMENT))
+
+    assert list(draft.to_dict().keys()) == DRAFT_FIELDS
 
 
 def test_the_schema_requires_every_field_and_allows_no_others():

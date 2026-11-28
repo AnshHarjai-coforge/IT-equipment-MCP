@@ -9,7 +9,6 @@ from it_equipment.evals.cases import EvalCase, ExpectedOutcome
 from it_equipment.evals.grading import RunGrade
 from it_equipment.evals.scorecard import (
     CaseRun,
-    numbered_text,
     plural,
     print_case_heading,
     print_run_result,
@@ -17,16 +16,12 @@ from it_equipment.evals.scorecard import (
     table_lines,
 )
 
-PASSED = RunGrade(problems=[], warnings=[])
+PASSED = RunGrade(problems=[])
 NO_FLAG = RunGrade(
     problems=[
         "Decision: expected escalated; the draft says denied.",
         "Flags: expected 1; recorded 0.",
-    ],
-    warnings=[],
-)
-PARAPHRASED = RunGrade(
-    problems=[], warnings=["Action 3's request is not the employee's words exactly."]
+    ]
 )
 
 
@@ -64,16 +59,11 @@ def test_a_long_summary_wraps_under_its_label(capsys):
     assert lines[2] == " " * 18 + "word" + " word" * 13
 
 
-def test_a_passed_run_prints_none_for_problems_and_warnings(capsys):
+def test_a_passed_run_prints_none_for_problems(capsys):
     print_run_result(CaseRun("5-not-processed-unknown-id", 1, PASSED, 2))
 
     assert capsys.readouterr().out == (
-        "\n"
-        "Result\n"
-        "  Outcome:        passed\n"
-        "  Problems:       none\n"
-        "  Warnings:       none\n"
-        "  Model calls:    2\n"
+        "\nResult\n  Outcome:        passed\n  Problems:       none\n  Model calls:    2\n"
     )
 
 
@@ -86,28 +76,6 @@ def test_a_failed_run_prints_its_problems_numbered(capsys):
         "  Problems:       1. Decision: expected escalated; the draft says denied.\n"
         "                  2. Flags: expected 1; recorded 0.\n"
     ) in printed
-
-
-def test_a_warning_does_not_fail_the_run(capsys):
-    print_run_result(CaseRun("8-escalated-injection", 1, PARAPHRASED, 4))
-
-    printed = capsys.readouterr().out
-    assert "  Outcome:        passed\n" in printed
-    assert (
-        "  Warnings:       1. Action 3's request is not the employee's words exactly.\n" in printed
-    )
-
-
-def test_a_long_numbered_sentence_carries_on_under_its_first_word():
-    sentence = "Flag id: the draft gives a flag id which this run did not receive."
-
-    text = numbered_text([sentence], 40)
-
-    assert text == "1. Flag id: the draft gives a flag id\n   which this run did not receive."
-
-
-def test_no_sentences_are_written_as_none():
-    assert numbered_text([], 80) == "none"
 
 
 def test_table_columns_line_up_with_two_spaces_between():
@@ -136,22 +104,11 @@ def test_the_scorecard_has_a_row_per_case_and_a_row_for_all_runs(capsys):
 
     assert capsys.readouterr().out.startswith(
         "Scorecard: 2 cases, 2 runs each, 4 runs in all\n"
-        "  Case                      Passed  Model calls     Warnings\n"
-        "  1-approved-replacement    2 of 2  3, 2            0\n"
-        "  4-escalated-damage-claim  1 of 2  4, 3            0\n"
+        "  Case                      Passed  Model calls\n"
+        "  1-approved-replacement    2 of 2  3, 2\n"
+        "  4-escalated-damage-claim  1 of 2  4, 3\n"
         "  All runs                  3 of 4  12 model calls\n"
     )
-
-
-def test_the_scorecard_counts_each_cases_warnings(capsys):
-    runs = [
-        CaseRun("8-escalated-injection", 1, PARAPHRASED, 4),
-        CaseRun("8-escalated-injection", 2, PARAPHRASED, 4),
-    ]
-
-    print_scorecard([case("8-escalated-injection")], 2, runs)
-
-    assert "  8-escalated-injection  2 of 2  4, 4           2\n" in capsys.readouterr().out
 
 
 def test_the_scorecard_ends_with_each_failed_runs_problems(capsys):

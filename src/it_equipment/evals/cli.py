@@ -91,18 +91,16 @@ async def run_case(
     counting_client = CountingModelClient(model_client)
 
     try:
-        result = await handle_request(
+        handled = await handle_request(
             counting_client, mcp_client, model, max_tokens, max_steps, case.request
         )
-        grade = grade_run(case, result)
+        grade = grade_run(case, handled)
     except APIError as error:
         # Foundry overloaded, a rate limit, a refused key. The run fails with
         # the error shown, and the runner carries on with the next one, so a
         # paid run never loses the results already paid for. The SDK's
         # message is the status and Foundry's reply, never the key.
-        grade = RunGrade(
-            problems=[f"The model call failed: {type(error).__name__}: {error}"], warnings=[]
-        )
+        grade = RunGrade(problems=[f"The model call failed: {type(error).__name__}: {error}"])
 
     return CaseRun(
         case_id=case.case_id,

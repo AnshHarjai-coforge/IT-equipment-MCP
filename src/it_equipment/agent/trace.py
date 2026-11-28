@@ -3,13 +3,17 @@
 Everything is printed as it happens, and in full, in the layout agreed for the
 demo (plan.md section 6, "Demo output layout"):
 
-    User query                   who sent the request, and their words
-    Step 1: ReAct loop           Thought, Action and Observation, numbered
-                                 across the whole loop
-    Draft after the ReAct loop   the model's draft, field by field
+    User query                     who sent the request, and their words
+    Step 1: ReAct loop             Thought, Action and Observation, numbered
+                                   across the whole loop
+    Draft after the ReAct loop     the model's draft, field by field, or one
+                                   line saying why there is none
+    Step 2: Reflection             Assessment, Critique, and Revised: only the
+                                   fields reflection changed
+    Step 3: Policy check (Python)  whether the reviewed draft stands, and why
+    Final answer                   what the employee gets
 
-or, when the loop ends without a draft, one line saying why. Nothing is
-shortened, so a screenshot of a run shows all of it. Every value starts in
+Nothing is shortened, so a screenshot of a run shows all of it. Every value starts in
 the same column; prose wraps at LINE_WIDTH; JSON is never wrapped, so the
 printed Observation is exactly what the model was given.
 
@@ -23,8 +27,9 @@ import textwrap
 from dataclasses import dataclass
 from typing import Any
 
-from it_equipment.agent.draft import Draft
+from it_equipment.agent.draft import DRAFT_FIELDS, Draft
 from it_equipment.agent.request import EquipmentRequest
+from it_equipment.agent.review import Review
 
 # Where every printed value starts, so the values line up in one column. It is
 # the width of the longest label in a normal run, "  Observation 1:  ".
@@ -97,14 +102,143 @@ def print_loop_stopped(stopped_because: str) -> None:
     print(wrapped_line(f"The ReAct loop stopped: {stopped_because}, so there is no draft."))
 
 
-def print_python_flagged(flag_id: str) -> None:
-    """Print the line saying Python sent a request with no draft to a person, with the flag's id."""
-    print(wrapped_line(f"Python sent the request to a person instead: flag id {flag_id}."))
+def print_reflection_skipped() -> None:
+    """Print Step 2 when the loop ended without a draft: there is nothing to review."""
+    print()
+    print("Step 2: Reflection")
+    print(wrapped_line("Reflection skipped: there is no draft to review."))
 
 
-def print_python_flag_failed(error_text: str) -> None:
-    """Print the line saying Python could not send the request to a person, and the tool's error."""
-    print(wrapped_line(f"Python could not send the request to a person: {error_text}"))
+def print_reflection_failed(why: str) -> None:
+    """Print Step 2 when reflection's reply could not be used, saying why.
+
+    For example: "Reflection could not be used: the model refused, so the
+    draft was not reviewed."
+    """
+    print()
+    print("Step 2: Reflection")
+    print(wrapped_line(f"Reflection could not be used: {why}, so the draft was not reviewed."))
+
+
+def print_reflection(draft: Draft, review: Review, reviewed: Draft) -> None:
+    """Print Step 2: the review's assessment, its critique, and what it changed.
+
+    What changed is worked out by comparing the draft with the reviewed draft,
+    field by field, so the new text is printed once, in the Final answer.
+    """
+    print()
+    print("Step 2: Reflection")
+    print(lines_under_label("Assessment", review.assessment))
+    print(lines_under_label("Critique", critique_text(review)))
+    print(lines_under_label("Revised", revised_text(draft, reviewed)))
+
+
+def print_policy_check(result: str) -> None:
+    """Print Step 3: the Python check's result, as one or two sentences."""
+    print()
+    print("Step 3: Policy check (Python)")
+    print(wrapped_lines_under_label("Result", result))
+
+
+def print_final_answer(final: Draft) -> None:
+    """Print the answer the employee gets: the decision in words, its reason and the message.
+
+    The flag id is printed only for an escalated answer, the only kind that
+    has one.
+    """
+    print()
+    print("Final answer")
+    print(lines_under_label("Decision", decision_in_words(final)))
+    if final.decision == "escalated":
+        print(lines_under_label("Flag id", text_or_none(final.flag_id)))
+    print(wrapped_lines_under_label("Reason", final.reason))
+    print(wrapped_lines_under_label("Message", final.message))
+
+
+def critique_text(review: Review) -> str:
+    """Return the review's problems numbered, or "No problems found." and what was checked.
+
+    Wrapped to the room after the value column, ready to go under its label.
+    """
+    room = LINE_WIDTH - VALUE_COLUMN
+
+    if len(review.problems) > 0:
+        return numbered_text(review.problems, room)
+
+    text = "No problems found."
+    if review.checked.strip() != "":
+        # What reflection checked is the reason a confirmed draft holds.
+        text = f"{text} {review.checked.strip()}"
+
+    return textwrap.fill(text, width=room)
+
+
+def revised_text(draft: Draft, reviewed: Draft) -> str:
+    """Return a line for each field reflection changed, or that the draft stands.
+
+    A short field reads "decision: approved → escalated". The message and the
+    reason are too long to show twice, so they read "rewritten", and their new
+    text is printed once, in the Final answer.
+    """
+    before = draft.to_dict()
+    after = reviewed.to_dict()
+
+    lines = []
+    for name in DRAFT_FIELDS:
+        if before[name] == after[name]:
+            continue
+
+        if name == "message" or name == "reason":
+            lines.append(f"{name}: rewritten (the new text is in the Final answer)")
+        else:
+            lines.append(f"{name}: {text_or_none(before[name])} → {text_or_none(after[name])}")
+
+    if len(lines) == 0:
+        return "No revision: the draft stands."
+
+    return "\n".join(lines)
+
+
+def decision_in_words(final: Draft) -> str:
+    """Return the final decision in words, e.g. "Approved (replacement laptop)"."""
+    if final.decision == "approved":
+        return f"Approved ({text_or_none(final.answered)} {text_or_none(final.item)})"
+
+    if final.decision == "denied":
+        return f"Denied ({text_or_none(final.answered)} {text_or_none(final.item)})"
+
+    if final.decision == "escalated":
+        return "Escalated to a person"
+
+    return "Not processed"
+
+
+def numbered_text(sentences: list[str], width: int) -> str:
+    """Return sentences as a numbered list, wrapped within width; "none" when there are none.
+
+    A sentence too long for one line carries on under its own first word,
+    not under the number, so each item reads as one block:
+
+        1. Decision: expected escalated; the final answer says denied.
+        2. Required call not made: get_employee_info(employee_id="E003").
+    """
+    if len(sentences) == 0:
+        return "none"
+
+    lines = []
+    number = 0
+    for sentence in sentences:
+        number = number + 1
+        label = f"{number}. "
+        pieces = textwrap.wrap(sentence, width=width - len(label))
+        if len(pieces) == 0:
+            # A blank sentence wraps to nothing, and still needs its number.
+            pieces = [""]
+        lines.append(label + pieces[0])
+        for piece in pieces[1:]:
+            lines.append(" " * len(label) + piece)
+
+    return "\n".join(lines)
 
 
 def print_thought_and_action(

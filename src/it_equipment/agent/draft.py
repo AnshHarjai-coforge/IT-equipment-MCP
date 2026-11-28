@@ -5,12 +5,16 @@ for it with output_config, whose format is DRAFT_SCHEMA, so the API holds the
 model to that shape (structured output). Python then turns the text into a
 Draft, so whatever comes next compares fields rather than reading prose.
 
+Reflection returns its corrected draft in the same shape, and the final answer
+has the same six fields too, so all three are a Draft.
+
 The descriptions inside the schema are written for the model, the same way the
 tools' docstrings are: they are what it reads when it fills in each field.
 """
 
 import json
 from dataclasses import dataclass
+from typing import Any
 
 from anthropic.types import Message
 
@@ -79,7 +83,7 @@ DRAFT_FORMAT = {"type": "json_schema", "schema": DRAFT_SCHEMA}
 
 @dataclass(frozen=True)
 class Draft:
-    """The model's decision before anything checks it."""
+    """A decision in six fields: the loop's draft, reflection's draft, or the final answer."""
 
     decision: str
     # None when it is unclear which item was meant.
@@ -91,6 +95,21 @@ class Draft:
     # The flag the model recorded; None unless escalated.
     flag_id: str | None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Return the six fields as JSON-ready values, in the schema's order.
+
+        This is how reflection is shown the draft: as the same JSON the model
+        wrote it in.
+        """
+        return {
+            "decision": self.decision,
+            "item": self.item,
+            "answered": self.answered,
+            "message": self.message,
+            "reason": self.reason,
+            "flag_id": self.flag_id,
+        }
+
 
 class InvalidDraftError(Exception):
     """Raised when the model's final reply cannot be read as a draft.
@@ -100,32 +119,46 @@ class InvalidDraftError(Exception):
     """
 
 
-def draft_from_reply(reply: Message) -> Draft:
-    """Return the draft written in the model's final reply.
-
-    Raises InvalidDraftError if the reply's text is not JSON, is not an object,
-    lacks one of the six fields, or has a decision or an answered value that is
-    not allowed. The API holds the model to the schema, but a reply cut short,
-    or a model that ignored it, must not be mistaken for a decision.
-    """
+def text_of_reply(reply: Message) -> str:
+    """Return what the model wrote in a reply: the text of its text blocks, joined."""
     texts = []
     for block in reply.content:
-        # Thinking blocks are left out: the draft is what the model wrote, not
-        # how it got there.
+        # Thinking blocks are left out: what counts is what the model wrote,
+        # not how it got there.
         if block.type == "text":
             texts.append(block.text)
 
     # Joined with nothing between them, so JSON that arrived in two pieces
     # reads as the one piece it was.
-    text = "".join(texts)
+    return "".join(texts)
 
+
+def draft_from_reply(reply: Message) -> Draft:
+    """Return the draft written in the model's final reply.
+
+    Raises InvalidDraftError if the reply's text is not JSON, or is JSON that
+    draft_from_fields cannot read as a draft. The API holds the model to the
+    schema, but a reply cut short, or a model that ignored it, must not be
+    mistaken for a decision.
+    """
     try:
-        fields = json.loads(text)
+        fields = json.loads(text_of_reply(reply))
     except json.JSONDecodeError as error:
         raise InvalidDraftError(f"The reply's text is not JSON: {error}") from error
 
+    return draft_from_fields(fields)
+
+
+def draft_from_fields(fields: Any) -> Draft:
+    """Return the draft held in JSON that has already been read, such as reflection's.
+
+    Raises InvalidDraftError if it is not an object, lacks one of the six
+    fields, or has a decision or an answered value that is not allowed. Any is
+    the type hint because JSON can hold anything, and finding out what it
+    holds is this function's job.
+    """
     if not isinstance(fields, dict):
-        raise InvalidDraftError("The reply's text is JSON, but not an object.")
+        raise InvalidDraftError("The draft is JSON, but not an object.")
 
     for name in DRAFT_FIELDS:
         if name not in fields:

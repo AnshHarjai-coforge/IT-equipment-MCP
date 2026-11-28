@@ -5,8 +5,8 @@ For each run of each case, in the order they happen:
     Case <id>, run k of N    which case, which run, and what it is meant to show
     (the agent's trace)      printed by the agent itself, exactly as from the
                              command line
-    Result                   passed or failed, the problems and warnings
-                             numbered, and the model calls the run made
+    Result                   passed or failed, the problems numbered, and
+                             the model calls the run made
 
 Then the scorecard: one row per case, a row for all runs, and every failed
 run's problems again, so they need not be found among the traces.
@@ -15,13 +15,13 @@ Values line up in the trace's column and prose wraps at its width, using the
 trace's own layout helpers, so the runner's output reads as one piece.
 """
 
-import textwrap
 from dataclasses import dataclass
 
 from it_equipment.agent.trace import (
     LINE_WIDTH,
     VALUE_COLUMN,
     lines_under_label,
+    numbered_text,
     wrapped_lines_under_label,
 )
 from it_equipment.evals.cases import EvalCase
@@ -59,7 +59,6 @@ def print_run_result(case_run: CaseRun) -> None:
     print("Result")
     print(lines_under_label("Outcome", outcome))
     print(lines_under_label("Problems", numbered_text(case_run.grade.problems, room)))
-    print(lines_under_label("Warnings", numbered_text(case_run.grade.warnings, room)))
     print(lines_under_label("Model calls", str(case_run.model_calls)))
 
 
@@ -70,7 +69,7 @@ def print_scorecard(cases: list[EvalCase], runs: int, case_runs: list[CaseRun]) 
         f"{plural(len(case_runs), 'run')} in all"
     )
 
-    rows = [["Case", "Passed", "Model calls", "Warnings"]]
+    rows = [["Case", "Passed", "Model calls"]]
     for case in cases:
         rows.append(scorecard_row(case.case_id, runs_of_case(case.case_id, case_runs)))
     rows.append(all_runs_row(case_runs))
@@ -91,17 +90,15 @@ def print_scorecard(cases: list[EvalCase], runs: int, case_runs: list[CaseRun]) 
 
 
 def scorecard_row(case_id: str, case_runs: list[CaseRun]) -> list[str]:
-    """Return one case's row: how many runs passed, each run's model calls, and its warnings."""
+    """Return one case's row: how many runs passed, and each run's model calls."""
     passed = 0
     model_calls = []
-    warnings = 0
     for case_run in case_runs:
         if case_run.grade.passed():
             passed = passed + 1
         model_calls.append(str(case_run.model_calls))
-        warnings = warnings + len(case_run.grade.warnings)
 
-    return [case_id, f"{passed} of {len(case_runs)}", ", ".join(model_calls), str(warnings)]
+    return [case_id, f"{passed} of {len(case_runs)}", ", ".join(model_calls)]
 
 
 def all_runs_row(case_runs: list[CaseRun]) -> list[str]:
@@ -113,7 +110,7 @@ def all_runs_row(case_runs: list[CaseRun]) -> list[str]:
             passed = passed + 1
         model_calls = model_calls + case_run.model_calls
 
-    return ["All runs", f"{passed} of {len(case_runs)}", plural(model_calls, "model call"), ""]
+    return ["All runs", f"{passed} of {len(case_runs)}", plural(model_calls, "model call")]
 
 
 def runs_of_case(case_id: str, case_runs: list[CaseRun]) -> list[CaseRun]:
@@ -134,31 +131,6 @@ def failed_runs(case_runs: list[CaseRun]) -> list[CaseRun]:
             failed.append(case_run)
 
     return failed
-
-
-def numbered_text(sentences: list[str], width: int) -> str:
-    """Return sentences as a numbered list, wrapped within width; "none" when there are none.
-
-    A sentence too long for one line carries on under its own first word,
-    not under the number, so each item reads as one block:
-
-        1. Decision: expected escalated; the draft says denied.
-        2. Required call not made: ...
-    """
-    if len(sentences) == 0:
-        return "none"
-
-    lines = []
-    number = 0
-    for sentence in sentences:
-        number = number + 1
-        label = f"{number}. "
-        pieces = textwrap.wrap(sentence, width=width - len(label))
-        lines.append(label + pieces[0])
-        for piece in pieces[1:]:
-            lines.append(" " * len(label) + piece)
-
-    return "\n".join(lines)
 
 
 def table_lines(rows: list[list[str]]) -> list[str]:

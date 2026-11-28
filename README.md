@@ -23,10 +23,12 @@ All four tools are served over MCP and confirmed working end to end:
 
 The agent connects to the server as an MCP client and runs an explicit ReAct loop over those
 tools for the request it is given, printing every Thought, Action and Observation, until the
-model writes its draft decision. Reflection on that draft is still to come.
+model writes its draft decision. A second call to the model, with no tools, then reviews the
+draft against what the tools returned (reflection), and a Python check makes sure the reviewed
+decision rests on a verdict or a flag from this run before the employee gets it.
 
-The eight demo requests are also eval cases: CI checks that the server still gives each one the
-answers it needs, and a paid runner grades the agent on all eight at once.
+The ten demo requests are also eval cases: CI checks that the server still gives each one the
+answers it needs, and a paid runner grades the agent's final answer on all ten at once.
 
 ## Requirements
 
@@ -127,11 +129,24 @@ is printed in full as it happens:
   the Observation is the tool's result exactly as the model is given it
 - `Draft after the ReAct loop`: the decision (approved, denied, escalated or not processed),
   the item, which verdict it relays, the message to the employee, the reason, and the flag id
+- `Step 2: Reflection`: one more call to the model, with no tools, that checks the draft against
+  every Action and Observation (not the Thoughts). It prints its assessment (confirmed or
+  revised), each problem it found, and which fields it changed
+- `Step 3: Policy check (Python)`: whether the reviewed draft stands. An approval or a denial
+  must be the verdict a `check_request_eligibility` result from this run gave for the sender; an
+  escalation must have a flag the tool recorded; not processed needs `get_employee_info` to have
+  refused the sender's id
+- `Final answer`: what the employee gets: the decision, the flag id when escalated, the reason
+  and the message
 
-If the loop ends without a draft (the model refuses, is cut off, or reaches the limit of
-`max_steps` calls), the agent says why in one line, and Python sends the request to a person
-with `flag_for_human_review`, printing the flag's id. Each call to the model is a paid call, so
-the tests replace the model with a scripted fake and never make one.
+Python sends the request to a person itself, with `flag_for_human_review`, whenever there is no
+answer it can stand behind: the loop ended without a draft (the model refused, was cut off, or
+reached the limit of `max_steps` calls), reflection could not be used, or the check failed. The
+Final answer is then Python's own, giving the flag id as the reference, because the model's
+message may say "approved". Python also makes the flag for an escalated answer that has none
+yet, such as one reflection escalated, and reuses a flag the run already recorded rather than
+making a second. Each call to the model is a paid call, so the tests replace the model with a
+scripted fake and never make one.
 
 If the server isn't running, or if Foundry refuses the call, the agent says so in a line or two
 and exits with status 1. A missing argument or a blank request prints the usage and exits with
@@ -139,10 +154,10 @@ status 2.
 
 ## Evaluating the agent
 
-[`data/eval_cases.json`](data/eval_cases.json) holds the eight demo requests as eval cases. Each
+[`data/eval_cases.json`](data/eval_cases.json) holds the ten demo requests as eval cases. Each
 case has the sender and their words, and what a correct run looks like:
 
-- `expected`: the draft's decision, item and answered, and whether a flag is recorded
+- `expected`: the final answer's decision, item and answered, and whether a flag is recorded
 - `verdicts`: the two verdicts `check_request_eligibility` gives, as of the tests' fixed date
   (`null` when no employee has the id)
 - `required_calls`: tool calls the run must include, listing only the arguments that matter
@@ -168,19 +183,21 @@ it builds one inside its own process, from the same data files, with the review 
 temporary folder that is deleted at the end, so the real `review-queue/` is never touched.
 
 For each run it prints a heading naming the case, the agent's trace exactly as
-`python -m it_equipment.agent` prints it, and a `Result`: passed or failed, the problems and
-warnings, and how many calls to the model the run made. A run passes when:
+`python -m it_equipment.agent` prints it, and a `Result`: passed or failed, the problems, and
+how many calls to the model the run made. What is graded is the final answer, the one the
+employee gets after reflection and the Python check. A run passes when:
 
-- the draft's decision, item and answered are the case's, exactly
+- the final answer's decision, item and answered are the case's, exactly; a run whose ReAct
+  loop ended without a draft fails, whatever Python did next
 - every required call was made (other calls, in any order, are allowed)
 - no forbidden call was made
-- one flag was recorded when the case expects one, none otherwise, and any flag id in the draft
-  is one the run received
+- one flag was recorded when the case expects one, none otherwise, and any flag id in the final
+  answer is one the run received; a flag Python made counts as the run's flag
 
-The message text is not graded. A flag whose request is not the employee's words exactly is a
-warning, not a failure. At the end a scorecard gives one row per case and repeats every failed
-run's problems. The runner exits with status 1 if any run failed. Each case takes about two to
-four calls to the model, so one pass over the eight is roughly 20 to 30 paid calls.
+The message text is not graded. At the end a scorecard gives one row per case and repeats every
+failed run's problems. The runner exits with status 1 if any run failed. Each case takes about
+three to five calls to the model, reflection's included, so one pass over the ten is roughly 35
+paid calls.
 
 ## Configuration
 
@@ -232,9 +249,12 @@ src/it_equipment/agent/           the agent, one job per module:
     cli.py                        the command line: reads the request, opens both clients
     request.py                    a request: the sender's id and their words, as one message
     prompts.py                    what the agent tells the model
-    handler.py                    one request start to finish; Python escalates if no draft
+    handler.py                    one request start to finish: loop, reflection, Python check
     react_loop.py                 the ReAct loop: model calls and tool calls until a draft
     draft.py                      the draft decision, its schema, and reading it back
+    reflection.py                 reflection: one call with no tools that reviews the draft
+    review.py                     reflection's review, its schema, and reading it back
+    policy_check.py               the Python check: the reviewed draft against this run's results
     mcp_bridge.py                 MCP tools into Claude tools, and tool results into text
     trace.py                      the trace's steps, and how everything is printed
 src/it_equipment/evals/           the eval harness, one job per module:

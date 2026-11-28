@@ -1,32 +1,32 @@
 """Grading one run of the agent against its eval case.
 
-In plain words, a run passes when all four of these hold:
+What is graded is the final answer: what the employee gets, after reflection
+and the Python check. In plain words, a run passes when all four of these hold:
 
-    1. The draft's decision, item and answered are the case's, exactly.
+    1. The final answer's decision, item and answered are the case's, exactly.
     2. Every required call was made. Other calls are allowed, and so is any
        order, so the model may also call get_policy_limits, or ask for
        several tools in one reply.
     3. No forbidden call was made.
     4. One flag was recorded when the case expects one, and none otherwise,
-       and any flag id the draft gives is one this run received.
+       and any flag id the final answer gives is one this run received.
 
-A run that ends without a draft fails the first check, whatever Python did
-next: the agent reached no decision of its own.
+A run that ends the loop without a draft fails the first check, whatever
+Python did next: the agent reached no decision of its own. The calls checked
+in 2 and 3 are the model's own Actions. A flag counted in 4 may be the
+model's or the one Python made, since either puts the request in front of a
+person.
 
-One finding is a warning rather than a failure: a flag whose request is not
-the employee's words exactly. The tool asks for their own words, but the
-outcome is the same either way.
-
-The message text is not graded: judging it is reflection's job (branch 7).
-Everything here is pure. It reads a case and a loop's result and returns
-sentences, so each check is tested with literal results and no model.
+The message text is not graded: judging it is reflection's job. Everything
+here is pure. It reads a case and a handled request and returns sentences, so
+each check is tested with literal results and no model.
 """
 
 import json
 from dataclasses import dataclass
 
 from it_equipment.agent.draft import Draft
-from it_equipment.agent.react_loop import LoopResult
+from it_equipment.agent.handler import HandledRequest
 from it_equipment.agent.trace import TraceStep, action_text, text_or_none
 from it_equipment.evals.cases import EvalCase, ExpectedOutcome, ToolCall
 
@@ -35,53 +35,56 @@ FLAG_TOOL = "flag_for_human_review"
 
 @dataclass(frozen=True)
 class RunGrade:
-    """What grading found in one run: the problems that fail it, and the warnings that do not."""
+    """What grading found in one run: the problems that fail it, in check order."""
 
     problems: list[str]
-    warnings: list[str]
 
     def passed(self) -> bool:
-        """Return True when the run has no problems. Warnings do not fail a run."""
+        """Return True when the run has no problems."""
         return len(self.problems) == 0
 
 
-def grade_run(case: EvalCase, result: LoopResult) -> RunGrade:
+def grade_run(case: EvalCase, handled: HandledRequest) -> RunGrade:
     """Return what grading found in one run of the agent on this case, problems in check order."""
+    loop = handled.loop
+    flag_ids = flag_ids_received(loop.trace, handled.python_flag_id)
+
     problems = []
-    problems.extend(draft_problems(case.expected, result.draft, result.stopped_because))
-    problems.extend(missing_call_problems(case.required_calls, result.trace))
-    problems.extend(forbidden_call_problems(case.forbidden_calls, result.trace))
-    problems.extend(flag_problems(case.expected.flagged, result.draft, result.trace))
 
-    warnings = flag_request_warnings(case.request.text, result.trace)
+    if loop.draft is None:
+        # The same sentence the trace printed when the loop stopped. The final
+        # answer is then Python's, not the agent's, so it is not compared.
+        problems.append(f"The ReAct loop stopped: {loop.stopped_because}, so there is no draft.")
+    else:
+        problems.extend(final_answer_problems(case.expected, handled.final))
 
-    return RunGrade(problems=problems, warnings=warnings)
+    problems.extend(missing_call_problems(case.required_calls, loop.trace))
+    problems.extend(forbidden_call_problems(case.forbidden_calls, loop.trace))
+    problems.extend(flag_problems(case.expected.flagged, handled.final.flag_id, flag_ids))
+
+    return RunGrade(problems=problems)
 
 
-def draft_problems(
-    expected: ExpectedOutcome, draft: Draft | None, stopped_because: str
-) -> list[str]:
+def final_answer_problems(expected: ExpectedOutcome, final: Draft) -> list[str]:
     """Return a sentence for each of decision, item and answered that differs from the case."""
-    if draft is None:
-        # The same sentence the trace printed when the loop stopped.
-        return [f"The ReAct loop stopped: {stopped_because}, so there is no draft."]
-
     problems = []
 
-    if draft.decision != expected.decision:
-        problems.append(f"Decision: expected {expected.decision}; the draft says {draft.decision}.")
-
-    # text_or_none writes a missing value as "none", as the draft is printed.
-    if draft.item != expected.item:
+    if final.decision != expected.decision:
         problems.append(
-            f"Item: expected {text_or_none(expected.item)}; "
-            f"the draft says {text_or_none(draft.item)}."
+            f"Decision: expected {expected.decision}; the final answer says {final.decision}."
         )
 
-    if draft.answered != expected.answered:
+    # text_or_none writes a missing value as "none", as the answer is printed.
+    if final.item != expected.item:
+        problems.append(
+            f"Item: expected {text_or_none(expected.item)}; "
+            f"the final answer says {text_or_none(final.item)}."
+        )
+
+    if final.answered != expected.answered:
         problems.append(
             f"Answered: expected {text_or_none(expected.answered)}; "
-            f"the draft says {text_or_none(draft.answered)}."
+            f"the final answer says {text_or_none(final.answered)}."
         )
 
     return problems
@@ -107,12 +110,13 @@ def forbidden_call_problems(forbidden_calls: list[ToolCall], trace: list[TraceSt
     return problems
 
 
-def flag_problems(expected_flagged: bool, draft: Draft | None, trace: list[TraceStep]) -> list[str]:
-    """Return what is wrong with the flags: how many were recorded, and the draft's flag id."""
-    flag_ids = flag_ids_received(trace)
-
+def flag_problems(
+    expected_flagged: bool, final_flag_id: str | None, flag_ids: list[str]
+) -> list[str]:
+    """Return what is wrong with the flags: how many were recorded, and the answer's flag id."""
     # One flag, because the tool and the system prompt both say to call it
-    # once per request: a second flag is a duplicate for a person to sort out.
+    # once per request, and Python reuses a flag the run already recorded: a
+    # second flag is a duplicate for a person to sort out.
     expected_count = 0
     if expected_flagged:
         expected_count = 1
@@ -122,38 +126,16 @@ def flag_problems(expected_flagged: bool, draft: Draft | None, trace: list[Trace
     if len(flag_ids) != expected_count:
         problems.append(f"Flags: expected {expected_count}; recorded {len(flag_ids)}.")
 
-    if draft is None:
-        # The missing draft is already a problem, and there is no flag id to check.
-        return problems
-
-    if draft.flag_id is None:
+    if final_flag_id is None:
         if expected_flagged:
-            problems.append("Flag id: a flag was expected, but the draft gives none.")
-    elif draft.flag_id not in flag_ids:
+            problems.append("Flag id: a flag was expected, but the final answer gives none.")
+    elif final_flag_id not in flag_ids:
         # An id the run never received was made up, or copied from elsewhere.
         problems.append(
-            f"Flag id: the draft gives {draft.flag_id}, which this run did not receive."
+            f"Flag id: the final answer gives {final_flag_id}, which this run did not receive."
         )
 
     return problems
-
-
-def flag_request_warnings(request_text: str, trace: list[TraceStep]) -> list[str]:
-    """Return a warning for each flag whose request is not the employee's words exactly."""
-    warnings = []
-    for step in trace:
-        if step.tool_name != FLAG_TOOL:
-            continue
-
-        # The server's schema requires a request, so a call without one was
-        # refused and is already an error; there is nothing to compare.
-        if "request" not in step.arguments:
-            continue
-
-        if step.arguments["request"] != request_text:
-            warnings.append(f"Action {step.number}'s request is not the employee's words exactly.")
-
-    return warnings
 
 
 def steps_matching(call: ToolCall, trace: list[TraceStep]) -> list[TraceStep]:
@@ -186,8 +168,8 @@ def step_matches(call: ToolCall, step: TraceStep) -> bool:
     return True
 
 
-def flag_ids_received(trace: list[TraceStep]) -> list[str]:
-    """Return the id of every flag the run recorded, in the order recorded.
+def flag_ids_received(trace: list[TraceStep], python_flag_id: str | None) -> list[str]:
+    """Return the id of every flag the run recorded: the loop's in order, then Python's.
 
     A refused flag records nothing and has no id, so it is not counted.
     """
@@ -198,6 +180,9 @@ def flag_ids_received(trace: list[TraceStep]) -> list[str]:
             # which holds the id the tool made.
             recorded = json.loads(step.observation)
             flag_ids.append(recorded["flag_id"])
+
+    if python_flag_id is not None:
+        flag_ids.append(python_flag_id)
 
     return flag_ids
 
